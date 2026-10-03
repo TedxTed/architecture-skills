@@ -24,18 +24,18 @@
 | Repository 進出的是 **entity** | 回傳 ORM model / DB row 給 use case |
 | 外部錯誤翻譯成內層錯誤；內層錯誤翻譯成外部格式 | 讓 `SQLException`、SDK 錯誤型別往內洩漏 |
 | 錯誤對應（領域錯誤 → HTTP 狀態碼）集中在一處 | 每個 controller 各寫一套錯誤對應 |
-| 第三方 SDK、ORM、框架註解只出現在本層 | adapter 之間直接互相呼叫內部細節 |
+| 第三方 SDK、ORM、框架註解只出現在本層 | adapter 之間直接互相呼叫，或 adapter 注入別的 port 繞過 use case 查資料 |
 
 ## 放什麼 / 不放什麼
 
 | 種類 | 方向 | 範例 | 做什麼 |
 |---|---|---|---|
-| Controller / Handler | Driving | `HttpLoanController`、`AdminCli` | 解析輸入 → Input DTO → 呼叫 use case → 轉回應 |
+| Controller / Handler | Driving | `LoanController`、`AdminCli` | 解析輸入 → Input DTO → 呼叫 use case → 轉回應 |
 | Presenter（選用） | Driving | `BorrowBookJsonPresenter` | Output DTO → JSON / HTML |
-| Error Mapping | Driving | `error_mapping` | 領域 / 應用錯誤 → HTTP 狀態碼 |
+| Error Mapping | Driving | `ErrorMapping`（`@ControllerAdvice`） | 領域 / 應用錯誤 → HTTP 狀態碼 |
 | Repository 實作 | Driven | `CsvLoanRepository`、`SqlLoanRepository` | Entity ⇄ 儲存格式 |
 | Gateway | Driven | `SmtpNotifier`、`SystemClock` | 呼叫外部服務 |
-| Mapper | 雙向 | `loan_mapper` | 純轉換函式 |
+| Mapper | 雙向 | `LoanMapper` | 純轉換函式 |
 | Request / Response Model | Driving | `BorrowRequest`、`BorrowResponse` | API 格式與傳輸驗證（見 [dto.md](../concepts/dto.md)） |
 | ORM model / Row | Driven | `LoanRow` | 資料表結構（也可放 infrastructure） |
 | ❌ 不放 | — | — | 業務規則、流程編排、組裝（`new` 其他 adapter） |
@@ -53,67 +53,148 @@
 2. 組成 Input DTO，呼叫 use case
 3. 成功：Output DTO → 回應格式；失敗：交給 error mapping
 
-## Pseudocode
+## 範例程式碼
 
-```
-// FILE: <adapters>/http/loan_controller.x            （Driving）
-ADAPTER HttpLoanController
-  DEPENDS ON borrowBook: BorrowBook
+Java，相容 JDK 1.7。Web 以 Spring MVC 4（支援 Java 7）為例；Spring 註解**只出現在本層**。
 
-  // POST /loans   body: { "memberId": "...", "bookId": "..." }
-  FUNCTION handleBorrow(request: HttpRequest) -> HttpResponse
-    body ← request.json()
-    IF body.memberId is not String OR body.bookId is not String
-      RETURN HttpResponse(400, { error: "INVALID_INPUT" })      // 傳輸格式驗證
+```java
+// FILE: <adapters>/web/LoanController.java            （Driving）
+@RestController
+@RequestMapping("/api/loans")
+public class LoanController {
+    private final BorrowBook borrowBook;
 
-    result ← borrowBook.execute(BorrowBookInput(body.memberId, body.bookId))
-    ON ERROR e → RETURN errorResponse(e)
+    public LoanController(BorrowBook borrowBook) { this.borrowBook = borrowBook; }
 
-    RETURN HttpResponse(201, { loanId: result.loanId, dueDate: formatIsoDate(result.dueDate) })
+    // POST /api/loans   body: { "memberId": "...", "bookId": "..." }
+    @RequestMapping(method = RequestMethod.POST)
+    public ResponseEntity<Map<String, Object>> borrow(@RequestBody BorrowRequest request) {
+        if (request.getMemberId() == null || request.getBookId() == null) {
+            return ErrorMapping.badRequest();                    // 傳輸格式驗證
+        }
+        BorrowBookOutput out = borrowBook.execute(
+                new BorrowBookInput(request.getMemberId(), request.getBookId()));
 
-  FUNCTION registerRoutes(server)
-    server.post("/loans", handleBorrow)
+        Map<String, Object> body = new HashMap<String, Object>();
+        body.put("loanId", out.getLoanId());
+        body.put("dueDate", out.getDueDate().toString());      // ISO 8601：2026-10-17
+        return new ResponseEntity<Map<String, Object>>(body, HttpStatus.CREATED);
+    }
+}
 
-// FILE: <adapters>/http/error_mapping.x
-FUNCTION errorResponse(error) -> HttpResponse
-  MATCH error
-    MemberNotFound, BookNotFound              → HttpResponse(404, { error: error.code })
-    BookNotAvailable, HasOverdueLoans         → HttpResponse(409, { error: error.code })
-    MemberSuspended, LoanLimitExceeded        → HttpResponse(422, { error: error.code })
-    otherwise                                 → log(error); HttpResponse(500, { error: "INTERNAL_ERROR" })
+// FILE: <adapters>/web/ErrorMapping.java          （錯誤對應集中一處）
+@ControllerAdvice
+public class ErrorMapping {
+    private static final Map<String, HttpStatus> STATUS = new HashMap<String, HttpStatus>();
+    static {
+        STATUS.put("MEMBER_NOT_FOUND", HttpStatus.NOT_FOUND);
+        STATUS.put("BOOK_NOT_FOUND", HttpStatus.NOT_FOUND);
+        STATUS.put("BOOK_NOT_AVAILABLE", HttpStatus.CONFLICT);
+        STATUS.put("HAS_OVERDUE_LOANS", HttpStatus.CONFLICT);
+        STATUS.put("MEMBER_SUSPENDED", HttpStatus.UNPROCESSABLE_ENTITY);
+        STATUS.put("LOAN_LIMIT_EXCEEDED", HttpStatus.UNPROCESSABLE_ENTITY);
+    }
 
-// FILE: <adapters>/persistence/loan_mapper.x          （CSV 與 SQL 共用）
-FUNCTION toEntity(row) -> Loan
-  RETURN Loan.reconstitute(LoanId(row.id), MemberId(row.member_id), BookId(row.book_id),
-                           parseDateTime(row.borrowed_at), parseDate(row.due_date),
-                           row.returned_at == "" ? Nothing : parseDateTime(row.returned_at),
-                           parseInt(row.renew_count))
+    @ExceptionHandler(DomainException.class)
+    public ResponseEntity<Map<String, Object>> domain(DomainException e) { return toResponse(e.getCode()); }
 
-FUNCTION toRow(loan: Loan) -> Row
-  RETURN { id: loan.id.value, member_id: loan.memberId.value, ... }
+    @ExceptionHandler(AppException.class)
+    public ResponseEntity<Map<String, Object>> app(AppException e) { return toResponse(e.getCode()); }
 
-// FILE: <adapters>/persistence/csv/csv_loan_repository.x     （Driven，先做）
-ADAPTER CsvLoanRepository IMPLEMENTS LoanRepository
-  DEPENDS ON store: CsvStore
-  FUNCTION findOpenByMember(memberId)
-    RETURN store.readAll("loans.csv")
-      .filter(r -> r.member_id == memberId.value AND r.returned_at == "")
-      .map(toEntity)
-  FUNCTION save(loan)
-    rows ← store.readAll("loans.csv").filter(r -> r.id != loan.id.value)
-    store.writeAll("loans.csv", rows + [toRow(loan)], COLUMNS)
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> unexpected(Exception e) {
+        LoggerFactory.getLogger(ErrorMapping.class).error("未預期的錯誤", e);   // 技術 log 在 adapter
+        return body("INTERNAL_ERROR", HttpStatus.INTERNAL_SERVER_ERROR);
+    }
 
-// FILE: <adapters>/notification/smtp_notifier.x       （Driven，Gateway）
-ADAPTER SmtpNotifier IMPLEMENTS Notifier
-  DEPENDS ON smtp: SmtpClient, members: MemberRepository
-  FUNCTION notifyBookBorrowed(memberId, bookTitle, dueDate)
-    member ← members.findById(memberId)
-    TRY smtp.send(to: member.email, subject: "借書成功", body: render("borrowed", bookTitle, dueDate))
-    ON ERROR SmtpError e → log.warn(e)                 // 外部錯誤不往內洩漏
+    static ResponseEntity<Map<String, Object>> badRequest() { return body("INVALID_INPUT", HttpStatus.BAD_REQUEST); }
 
-// FILE: <adapters>/time/system_clock.x
-ADAPTER SystemClock IMPLEMENTS Clock
-  FUNCTION now() -> RETURN os.currentTime()
+    private ResponseEntity<Map<String, Object>> toResponse(String code) {
+        HttpStatus status = STATUS.containsKey(code) ? STATUS.get(code) : HttpStatus.BAD_REQUEST;
+        return body(code, status);
+    }
+
+    private static ResponseEntity<Map<String, Object>> body(String code, HttpStatus status) {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("error", code);
+        return new ResponseEntity<Map<String, Object>>(map, status);
+    }
+}
+
+// FILE: <adapters>/persistence/LoanMapper.java          （CSV 與 SQL 共用）
+public final class LoanMapper {
+    public static final String[] COLUMNS =
+            {"id", "member_id", "book_id", "borrowed_at", "due_date", "returned_at", "renew_count"};
+
+    public static Loan toEntity(Map<String, String> row) {
+        String returnedAt = row.get("returned_at");
+        return Loan.reconstitute(
+                new LoanId(row.get("id")), new MemberId(row.get("member_id")), new BookId(row.get("book_id")),
+                LocalDateTime.parse(row.get("borrowed_at")), LocalDate.parse(row.get("due_date")),
+                returnedAt.isEmpty() ? null : LocalDateTime.parse(returnedAt),
+                Integer.parseInt(row.get("renew_count")));
+    }
+
+    public static Map<String, String> toRow(Loan loan) {
+        Map<String, String> row = new LinkedHashMap<String, String>();
+        row.put("id", loan.getId().getValue());
+        row.put("member_id", loan.getMemberId().getValue());
+        row.put("book_id", loan.getBookId().getValue());
+        row.put("borrowed_at", loan.getBorrowedAt().toString());
+        row.put("due_date", loan.getDueDate().toString());
+        row.put("returned_at", loan.getReturnedAt() == null ? "" : loan.getReturnedAt().toString());
+        row.put("renew_count", String.valueOf(loan.getRenewCount()));
+        return row;
+    }
+}
+
+// FILE: <adapters>/persistence/csv/CsvLoanRepository.java     （Driven，先做）
+public class CsvLoanRepository implements LoanRepository {
+    private static final String FILE = "loans.csv";
+    private final CsvStore store;
+
+    public CsvLoanRepository(CsvStore store) { this.store = store; }
+
+    @Override
+    public List<Loan> findOpenByMember(MemberId memberId) {
+        List<Loan> result = new ArrayList<Loan>();
+        for (Map<String, String> row : store.readAll(FILE)) {
+            if (row.get("member_id").equals(memberId.getValue()) && row.get("returned_at").isEmpty()) {
+                result.add(LoanMapper.toEntity(row));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public void save(Loan loan) {
+        store.upsert(FILE, LoanMapper.toRow(loan), LoanMapper.COLUMNS);   // 原地取代，保持列順序
+    }
+
+    // findById、nextId 略（nextId：return new LoanId(UUID.randomUUID().toString());）
+}
+
+// FILE: <adapters>/notification/SmtpNotifier.java       （Driven，Gateway）
+public class SmtpNotifier implements Notifier {
+    private final MailSender mailSender;                 // 不注入 repository：需要的資料由 use case 傳入
+
+    public SmtpNotifier(MailSender mailSender) { this.mailSender = mailSender; }
+
+    @Override
+    public void notifyBookBorrowed(Recipient to, String bookTitle, LocalDate dueDate) {
+        try {
+            mailSender.send(to.getEmail(), "借書成功", to.getName() + " 您好，《" + bookTitle + "》到期日 " + dueDate);
+        } catch (MailException e) {
+            LoggerFactory.getLogger(SmtpNotifier.class).warn("寄信失敗", e);   // 外部錯誤不往內洩漏
+        }
+    }
+}
+
+// FILE: <adapters>/time/SystemClock.java
+public class SystemClock implements Clock {
+    @Override
+    public LocalDateTime now() { return LocalDateTime.now(); }
+}
 ```
 
 ## 與其他層的配合
@@ -137,7 +218,7 @@ ADAPTER SystemClock IMPLEMENTS Clock
 | Entities | mapper **建構與讀取**它（`reconstitute`、讀欄位） | Entity ⇄ row |
 | Frameworks & Drivers | **組裝我**、把連線 / 設定注入給我、把路由接到我 | DB 連線、SMTP client、設定值 |
 | 外界 | **我直接面對**：HTTP、檔案、DB、第三方 API | 外部格式 |
-| 其他 adapter | 原則上**不直接互相呼叫**；需要時透過 port（例如 SmtpNotifier 透過 MemberRepository port） | — |
+| 其他 adapter / 其他 port | **不互相呼叫，也不注入別的 port 自己查資料**。adapter 需要的資料由 use case 查好傳入（例：use case 把會員 email 傳給 Notifier，而不是 SmtpNotifier 自己查 MemberRepository） | — |
 
 **關鍵**：所有「外部格式 ⇄ 內部型別」的轉換都在這一層完成，而且**只在這一層**。
 

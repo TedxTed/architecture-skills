@@ -34,6 +34,7 @@
 - [ ] 錯誤翻譯（領域錯誤 → HTTP status）集中在一處
 - [ ] 外部 SDK 的錯誤型別沒有洩漏到 adapter 之外
 - [ ] Repository 回傳 entity，不回傳 ORM model / row
+- [ ] Driven adapter 沒有注入別的 port 自己查資料（需要的資料由 use case 傳入）
 - [ ] Request / Response model、Row、第三方 payload 沒有離開 adapter 層
 
 ## 🟡 建議改善
@@ -47,6 +48,10 @@
 - [ ] 新增 / 修改的檔案編碼與 card.md 一致；非 UTF-8 專案中沒有 emoji 或無法表示的字元
 
 ## 快速自動檢查（給 AI 執行）
+
+Java 專案可直接使用 [templates/scripts/CheckArch.java](../templates/scripts/CheckArch.java)（JDK 1.7 可編譯，不需任何套件，也檢查模組之間是否只透過 `api` package）；
+TypeScript / JavaScript 專案用 [templates/scripts/check-arch.mjs](../templates/scripts/check-arch.mjs)。
+其他語言用 `languages/*.md` 列出的工具，或以下手動搜尋：
 
 用搜尋工具在內層找禁止的 import。將 `<框架關鍵字>` 換成使用者的技術棧：
 

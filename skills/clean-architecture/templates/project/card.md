@@ -11,7 +11,8 @@
 # 架構卡
 
 Clean Architecture｜Skill：`<docs/architecture-skills/skills/clean-architecture/>`
-語言 / 框架：`<TypeScript / NestJS>`｜DB：`<PostgreSQL + Prisma>`
+形態：`<純後端 / 全端（後端在 server/）/ 純前端 / CLI>`
+語言 / 框架：`<Java 1.7 / Spring 4.3 MVC / Maven>`｜DB：`<Oracle + JdbcTemplate>`｜base package：`<com.example.library>`
 編碼：原始碼 `<UTF-8 / CP950>`｜CSV `<UTF-8 / UTF-8 BOM / CP950>`｜換行 `<LF / CRLF>`
 `<非 UTF-8 才保留此行：讀寫檔案前先讀 skill 的 concepts/file-encoding.md；不使用 emoji>`
 
@@ -30,23 +31,25 @@ debt.md 只在審查 / 重構時讀。
 ## 路徑（結構：`<A. by-layer / B. by-feature>`）
 | 佔位符 | 本專案 |
 |---|---|
-| `<domain>` | `<src/{module}/domain>` |
+| `<domain>` | `<src/main/java/com/example/library/{module}/domain>` |
 | `<application>` | `<...>` |
 | `<adapters>` | `<...>` |
+| `<infrastructure>` | `<...>` |
 | `<main>` | `<...>` |
-| `<tests>` | `<...>` |
+| `<tests>` | `<...（不寫測試時寫「不寫，見 C-00N」）>` |
 | 共用 port | `<...>` |
+| 共用 adapter | `<...>` |
 
 模組：`<lending 借閱、catalog 館藏>`
 
-## 語言寫法（首次設定時從 languages/<語言>.md 濃縮）
-- Port：`<interface，放 <application>/ports/>`
-- Use case：`<class + execute(input)，建構子注入>`
-- 錯誤：`<throw DomainError(code)>`
-- DTO：`<type 物件>`
-- 框架限制：`<domain / application 不加 @Injectable；在 module 用 factory 組裝>`
+## 語言寫法（首次設定時濃縮）
+- Port：`<interface，放 <application>/port/>`｜Use case：`<class + execute(XxxInput)，建構子注入，不加 @Service>`
+- 錯誤：`<throw new XxxException()，繼承 DomainException / AppException（unchecked）>`
+- DTO：`<final class + final 欄位 + getter>`｜找不到資料：`<回傳 null（JDK 1.7）>`｜回呼：`<匿名類別>`
+- 框架限制：`<Spring 註解只在 adapter 與 config；組裝用 @Configuration + @Bean；儲存用 profile csv / sql>`
+
 ## 常用指令（試出可用的指令就補上）
-- 測試：`<npm test>`｜啟動：`<STORAGE=csv npm run dev>`｜依賴檢查：`<npm run lint:arch>`
+- 編譯：`<mvn compile>`｜測試：`<mvn test>`｜啟動：`<mvn spring-boot:run -Dspring.profiles.active=csv>`｜依賴檢查：`<java -cp target/check CheckArch src/main/java com.example.library>`
 
 ## 新功能步驟（每步通過檢查才進下一步）
 0. 拆規則表（Entity 規則 / Use case 流程 / I/O / 需要的 Port）；不清楚的**一次問完**，附預設值
@@ -56,7 +59,7 @@ debt.md 只在審查 / 重構時讀。
 4. Use case 測試：in-memory fakes；此時還沒有任何 adapter
 5. CSV adapter（`<adapters>/persistence/csv/`）+ contract test
 6. Driving adapter（controller / CLI）+ 錯誤對應
-7. 組裝：`<main>` 依 `<STORAGE=csv|sql>` 切換
+7. 組裝：`<main>` 的 `@Bean`；儲存依 profile `<csv | sql>` 切換
 8. 用 CSV 跑通 → **交付給使用者確認**
 9. 使用者同意後才做 SQL adapter；contract test 須同時通過，domain / application 零修改
 10. 收尾記錄（見下）
@@ -69,13 +72,10 @@ debt.md 只在審查 / 重構時讀。
 - 試出可用的指令 → 本檔「常用指令」
 - 與預設不同的慣例（使用者明說或 ≥ 2 處一致）→ `conventions.md`：`## C-N [標籤] 標題` + 預設 / 本專案 / 依據
 - 違反硬規則的既有程式碼 → `debt.md`；兩種寫法矛盾 → 先問使用者
-- 只記結論，不記推理過程；記錄與程式碼不符時以程式碼為準並修正
-- 最後一行告知使用者記了什麼
+- 只記結論，不記推理過程；與程式碼不符時以程式碼為準並修正；最後一行告知使用者記了什麼
 
-## 卡上沒寫到時才查 skill
-某一層怎麼寫 `layers/01-entities.md`、`02-use-cases.md`、`03-interface-adapters.md`、`04-frameworks-drivers.md`
-步驟細節 `workflows/new-feature.md`｜CSV 樣板 `concepts/csv-first.md`｜換 DB `workflows/add-adapter.md`
-放哪不確定 `concepts/placement-guide.md`｜DTO `concepts/dto.md`｜錯誤 / 交易 `concepts/crossing-boundaries.md`｜審查 `review/checklist.md`
-收尾該記什麼 `workflows/wrap-up.md`
+## 卡上沒寫到時才查 skill（任務 → 文件對照見 skill 的 SKILL.md 任務表）
+各層 `layers/0N-*.md`｜步驟 `workflows/new-feature.md`｜CSV `concepts/csv-first.md`｜換 DB `workflows/add-adapter.md`
+放哪 `concepts/placement-guide.md`｜DTO `concepts/dto.md`｜錯誤 / 交易 / 競態 `concepts/crossing-boundaries.md`｜審查 `review/checklist.md`
 
 ---

@@ -1,6 +1,6 @@
 ---
 name: clean-architecture
-description: 以 Clean Architecture（乾淨架構）設計、實作、重構或審查程式碼。提供分層規則、逐步實作流程、語言中立 pseudocode、兩種資料夾結構（by-layer / by-feature）與審查清單。當使用者要求「用乾淨架構」「分層」「解耦框架」「新增 use case」或審查架構時使用。
+description: 以 Clean Architecture（乾淨架構）設計、實作、重構或審查程式碼。提供分層規則、逐步實作流程、Java 範例程式碼（相容 JDK 1.7）、兩種資料夾結構（by-layer / by-feature）與審查清單。當使用者要求「用乾淨架構」「分層」「解耦框架」「新增 use case」或審查架構時使用。
 ---
 
 # Clean Architecture Skill
@@ -27,13 +27,14 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構或
 
 ## 四層
 
-| 層 | 佔位符 | 放什麼 | 詳細（規則、pseudocode、與其他層的配合） |
+| 層 | 佔位符 | 放什麼 | 詳細（規則、範例程式碼、與其他層的配合） |
 |---|---|---|---|
 | Entities | `<domain>` | Entity、Value、領域錯誤（沒有電腦也成立的規則） | [layers/01-entities.md](layers/01-entities.md) |
 | Use Cases | `<application>` | Use case、Port 介面、DTO（系統執行一個操作的步驟） | [layers/02-use-cases.md](layers/02-use-cases.md) |
 | Interface Adapters | `<adapters>` | Controller、Repository 實作（CSV / SQL）、Mapper | [layers/03-interface-adapters.md](layers/03-interface-adapters.md) |
 | Frameworks & Drivers | `<infrastructure>`、`<main>` | 連線、Server、設定、組裝 | [layers/04-frameworks-drivers.md](layers/04-frameworks-drivers.md) |
 
+範例程式碼是 **Java，相容 JDK 1.7**（約定見 [shared/code-conventions.md](../../shared/code-conventions.md)）；其他語言對照 `languages/`。
 範例中的 `<domain>` 等佔位符，依專案 card.md 的路徑表替換。**寫哪一層就只讀那一層的檔案。**
 
 ## 任務表（卡上沒寫到時才查）
@@ -50,10 +51,12 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構或
 | 寫某一層但不確定怎麼寫 | `layers/0N-<該層>.md`（見上方四層表） |
 | 不確定程式碼放哪 | [concepts/placement-guide.md](concepts/placement-guide.md) |
 | DTO：種類、放哪、誰轉換、PATCH | [concepts/dto.md](concepts/dto.md) |
-| 錯誤 / 交易 / Entity ⇄ Row 跨層 | [concepts/crossing-boundaries.md](concepts/crossing-boundaries.md) |
+| 錯誤 / 交易 / 競態 / Entity ⇄ Row 跨層 | [concepts/crossing-boundaries.md](concepts/crossing-boundaries.md) |
+| 一件事發生後有多個後續動作、跨模組通知 | [concepts/domain-events.md](concepts/domain-events.md) |
+| 前端專案（Vue / React） | [concepts/frontend.md](concepts/frontend.md) |
 | 審查程式碼 | [review/checklist.md](review/checklist.md) + 專案 debt.md |
 | 記錄慣例 / 偏差 | [workflows/record-convention.md](workflows/record-convention.md) |
 | 任務收尾，該記什麼 | [workflows/wrap-up.md](workflows/wrap-up.md) |
-| 想看完整範例 | [pseudocode/borrow-book-end-to-end.md](pseudocode/borrow-book-end-to-end.md) |
+| 想看完整範例 | [examples/borrow-book-end-to-end.md](examples/borrow-book-end-to-end.md) |
 
 範例領域是圖書借閱（`Member` 借 `Book` 產生 `Loan`，規則 R1–R7），看不懂規則編號時才讀 [shared/example-domain.md](../../shared/example-domain.md)。

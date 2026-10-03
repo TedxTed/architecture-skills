@@ -1,19 +1,23 @@
 # Go 對照
 
-## Pseudocode → Go
+## Java → Go
 
-| Pseudocode | Go 慣用寫法 |
+本 skill 的範例是 Java。轉成 Go 時對照下表：
+
+| Java 範例中的寫法 | Go 慣用寫法 |
 |---|---|
-| `ENTITY` | `struct`（未匯出欄位）+ 指標接收者方法 |
-| `VALUE` | 具名型別：`type LoanID string`，或小型 struct（值接收者） |
-| `ENUM` | `type BookStatus string` + `const` |
-| `PORT` | `interface`，**定義在使用它的 package（application）** |
-| `ADAPTER ... IMPLEMENTS` | 有對應方法的 struct（隱式實作），可用 `var _ app.LoanRepository = (*SQLLoanRepository)(nil)` 編譯期檢查 |
-| `USE_CASE` | struct + `Execute(ctx, input)` 方法 |
-| `DTO` | 純資料 struct |
-| `FAIL` | `return ..., ErrXxx`（sentinel error 或自訂 error 型別） |
-| `TRY` | `if err != nil { return ..., err }` |
-| `Nothing` | `nil`，或回傳 `ErrNotFound` |
+| Entity：`class` + `private` 欄位 + 業務方法 | `struct`（未匯出欄位）+ 指標接收者方法 |
+| Value：`final class LoanId` | 具名型別：`type LoanID string`，或小型 struct（值接收者） |
+| `enum BookStatus` | `type BookStatus string` + `const` |
+| Port：`interface` | `interface`，**定義在使用它的 package（application）** |
+| Adapter：`class X implements Port` | 有對應方法的 struct（隱式實作），可用 `var _ app.LoanRepository = (*SQLLoanRepository)(nil)` 編譯期檢查 |
+| Use case：`class` + `execute(Input)` | struct + `Execute(ctx, input)` 方法 |
+| DTO：`final class` + getter | 純資料 struct |
+| `throw new XxxException()` | `return ..., ErrXxx`（sentinel error 或自訂 error 型別） |
+| 呼叫可能丟例外的方法 | `if err != nil { return ..., err }` |
+| 找不到回傳 `null` | `nil`，或回傳 `ErrNotFound` |
+| 匿名類別 `new Runnable() { ... }` | `func(ctx context.Context) error { ... }` |
+| Spring `@Configuration` + `@Bean` | `cmd/server/main.go` 手動組裝 |
 
 > **`context.Context` 可以進入 application 層嗎？** 可以。它是標準庫，用於取消與逾時，不是框架。但**不要**把 `*gin.Context` / `echo.Context` 傳進去。Domain 層通常不需要 ctx。
 
@@ -157,7 +161,7 @@ func (uc *BorrowBook) Execute(ctx context.Context, in BorrowBookInput) (BorrowBo
 		return BorrowBookOutput{}, err
 	}
 
-	_ = uc.Notifier.NotifyBookBorrowed(ctx, member.ID, book.Title, loan.DueDate())
+	_ = uc.Notifier.NotifyBookBorrowed(ctx, Recipient{Email: member.Email, Name: member.Name}, book.Title, loan.DueDate())
 	return BorrowBookOutput{LoanID: string(loan.ID), DueDate: loan.DueDate()}, nil
 }
 ```

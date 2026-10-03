@@ -1,18 +1,23 @@
 # TypeScript 對照
 
-## Pseudocode → TypeScript
+## Java → TypeScript
 
-| Pseudocode | TypeScript 慣用寫法 |
+本 skill 的範例是 Java。轉成 TypeScript 時對照下表：
+
+| Java 範例中的寫法 | TypeScript 慣用寫法 |
 |---|---|
-| `ENTITY` | `class`，欄位 `private`，以方法改變狀態 |
-| `VALUE` | `class` + `readonly` 欄位，或 branded type：`type LoanId = string & { __brand: "LoanId" }` |
-| `ENUM` | 字串字面值聯集：`type BookStatus = "AVAILABLE" \| "ON_LOAN"` |
-| `PORT` | `interface` |
-| `ADAPTER ... IMPLEMENTS` | `class X implements Port` |
-| `USE_CASE` | `class` + `execute()`，建構子注入 |
-| `DTO` | `type` / `interface`（純資料） |
-| `FAIL` | `throw new DomainError(...)`，或 `Result<T, E>` 型別（擇一並全專案一致） |
-| `Nothing` | `null` |
+| Entity：`class` + `private` 欄位 + 業務方法 | 相同：`class`，欄位 `private`，以方法改變狀態 |
+| Value：`final class LoanId` + `equals` | `class` + `readonly` 欄位，或 branded type：`type LoanId = string & { __brand: "LoanId" }` |
+| `enum BookStatus` | 字串字面值聯集：`type BookStatus = "AVAILABLE" \| "ON_LOAN"` |
+| Port：`interface` | `interface` |
+| Adapter：`class X implements Port` | 相同 |
+| Use case：`class` + `execute(Input)`，建構子注入 | 相同 |
+| DTO：`final class` + `final` 欄位 + getter | `type` / `interface`（`readonly` 欄位） |
+| `throw new XxxException()`（unchecked） | `throw new DomainError(code)`，或 `Result<T, E>` 型別（擇一並全專案一致） |
+| 找不到回傳 `null` | `null` |
+| 匿名類別 `new Runnable() { ... }` | 箭頭函式 `async () => { ... }` |
+| `LocalDate` / `LocalDateTime` | `Date` 或 date-only 字串（`"2026-10-17"`）；需要時用 date-fns / dayjs |
+| Spring `@Configuration` + `@Bean` | 手寫 `main.ts` 組裝，或 NestJS module 的 factory provider |
 
 ## 資料夾與檔名
 
@@ -109,7 +114,7 @@ export class BorrowBook {
       await this.loans.save(loan);
     });
 
-    await this.notifier.notifyBookBorrowed(member.id, book.title, loan.dueDate);
+    await this.notifier.notifyBookBorrowed({ email: member.email, name: member.name }, book.title, loan.dueDate);
     return { loanId: loan.id, dueDate: loan.dueDate };
   }
 }

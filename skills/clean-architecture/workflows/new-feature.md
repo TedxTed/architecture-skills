@@ -3,6 +3,9 @@
 適用：使用者說「幫我做一個 X 功能 / API」。
 每一步都有**產出**與**檢查點**。檢查點沒過，不進下一步。
 
+> 專案慣例為「不寫自動化測試」時：跳過各步驟的寫測試動作，改在 Step 8 做**型別檢查 + 依賴方向檢查 + 手動打主要成功路徑與每種錯誤**，
+> 並在交付摘要中列出驗證過的情境。依賴方向檢查可用 [CheckArch.java](../templates/scripts/CheckArch.java)（Java）或 [check-arch.mjs](../templates/scripts/check-arch.mjs)（TS / JS）。
+
 ---
 
 ## Step 0 — 理解需求，產出規則清單
@@ -50,13 +53,18 @@
 3. 每種違規定義一個領域錯誤
 4. 寫 domain 單元測試：每條規則至少一個成功、一個失敗案例
 
-```
-// FILE: <domain>/loan.x   （新增方法）
-FUNCTION renew(now: DateTime)
-  IF isOverdue(now)           FAIL CannotRenewOverdueLoan     // R7a
-  IF renewCount >= MAX_RENEW  FAIL RenewLimitExceeded         // R7b
-  dueDate    ← dueDate + LOAN_DAYS                            // R7c
-  renewCount ← renewCount + 1
+```java
+// FILE: <domain>/Loan.java   （新增方法）
+public void renew(LocalDateTime now) {
+    if (isOverdue(now)) {
+        throw new CannotRenewOverdueLoanException();    // R7a
+    }
+    if (renewCount >= MAX_RENEW) {
+        throw new RenewLimitExceededException();        // R7b
+    }
+    dueDate = dueDate.plusDays(LOAN_DAYS);              // R7c
+    renewCount++;
+}
 ```
 
 ✅ **檢查點**：
@@ -70,8 +78,8 @@ FUNCTION renew(now: DateTime)
 
 **動作**：列出 use case 需要的外部能力。已存在的 port 直接用；需要新方法就加到既有 port；全新能力才新增 port。
 
-```
-// FILE: <application>/ports/loan_repository.x   （已存在，確認有 findById / save）
+```java
+// FILE: <application>/port/LoanRepository.java   （已存在，確認有 findById / save 即可，不新增）
 ```
 
 ✅ **檢查點**：
@@ -84,25 +92,45 @@ FUNCTION renew(now: DateTime)
 
 **動作**：照 [use case 標準步驟](../layers/02-use-cases.md#怎麼寫步驟) 寫：轉換輸入 → 載入 → 呼叫 entity → 儲存 → 副作用 → 回傳 DTO。
 
-```
-// FILE: <application>/use_cases/renew_loan/renew_loan_dto.x
-DTO RenewLoanInput  { loanId: String }
-DTO RenewLoanOutput { newDueDate: Date }
+```java
+// FILE: <application>/usecase/renewloan/RenewLoanInput.java
+public final class RenewLoanInput {
+    private final String loanId;
+    public RenewLoanInput(String loanId) { this.loanId = loanId; }
+    public String getLoanId() { return loanId; }
+}
 
-// FILE: <application>/use_cases/renew_loan/renew_loan.x
-USE_CASE RenewLoan
-  DEPENDS ON loans: LoanRepository, clock: Clock
+// FILE: <application>/usecase/renewloan/RenewLoanOutput.java
+public final class RenewLoanOutput {
+    private final LocalDate newDueDate;
+    public RenewLoanOutput(LocalDate newDueDate) { this.newDueDate = newDueDate; }
+    public LocalDate getNewDueDate() { return newDueDate; }
+}
 
-  FUNCTION execute(input: RenewLoanInput) -> RenewLoanOutput
-    loan ← loans.findById(LoanId(input.loanId))
-    IF loan == Nothing  FAIL LoanNotFound
-    TRY loan.renew(clock.now())
-    loans.save(loan)
-    RETURN RenewLoanOutput(newDueDate: loan.dueDate)
+// FILE: <application>/usecase/renewloan/RenewLoan.java
+public class RenewLoan {
+    private final LoanRepository loans;
+    private final Clock clock;
+
+    public RenewLoan(LoanRepository loans, Clock clock) {
+        this.loans = loans;
+        this.clock = clock;
+    }
+
+    public RenewLoanOutput execute(RenewLoanInput input) {
+        Loan loan = loans.findById(new LoanId(input.getLoanId()));
+        if (loan == null) {
+            throw new AppException("LOAN_NOT_FOUND");
+        }
+        loan.renew(clock.now());          // 規則在 entity
+        loans.save(loan);
+        return new RenewLoanOutput(loan.getDueDate());
+    }
+}
 ```
 
 ✅ **檢查點**：
-- [ ] use case 裡沒有業務規則的 `IF`（只有「找不到」之類的流程判斷）
+- [ ] use case 裡沒有業務規則的 `if`（只有「找不到」之類的流程判斷）
 - [ ] 回傳 DTO，不是 entity
 - [ ] 沒有 import adapters / 框架
 
@@ -110,16 +138,24 @@ USE_CASE RenewLoan
 
 ## Step 4 — Use Case 測試
 
-**動作**：用 in-memory fakes 測 use case。至少涵蓋：成功路徑、每種 FAIL、副作用是否在失敗時**不**發生。
+**動作**：用 in-memory fakes 測 use case。至少涵蓋：成功路徑、每種錯誤、副作用是否在失敗時**不**發生。
 
-```
-TEST "已續借過一次的借閱不能再續借"
-  loans ← InMemoryLoanRepository([loanWith(renewCount: 1)])
-  useCase ← RenewLoan(loans, FixedClock(...))
-  EXPECT useCase.execute(RenewLoanInput("l1")) FAILS WITH RenewLimitExceeded
+```java
+// FILE: <tests>/application/RenewLoanTest.java     （JUnit 4）
+public class RenewLoanTest {
+    @Test(expected = RenewLimitExceededException.class)
+    public void 已續借過一次的借閱不能再續借() {
+        LocalDateTime jan1 = LocalDateTime.of(2026, 1, 1, 10, 0);
+        InMemoryLoanRepository loans = new InMemoryLoanRepository();
+        loans.save(Loan.reconstitute(new LoanId("l1"), new MemberId("m1"), new BookId("b1"),
+                jan1, LocalDate.of(2026, 1, 29), null, 1));          // renewCount = 1
+
+        new RenewLoan(loans, new FixedClock(jan1)).execute(new RenewLoanInput("l1"));
+    }
+}
 ```
 
-若 fakes 尚不存在，新增到 `tests/fakes/`。
+若 fakes 尚不存在，新增到 `<tests>/fakes/`（寫法見 [端到端範例](../examples/borrow-book-end-to-end.md)）。
 
 ✅ **檢查點**：測試全過，且**此時還沒有寫任何 adapter**。這證明業務邏輯與技術細節已解耦。
 
@@ -129,10 +165,17 @@ TEST "已續借過一次的借閱不能再續借"
 
 **動作**：新 port 或新 port 方法，**先實作 CSV 版本**。做法與樣板見 [concepts/csv-first.md](../concepts/csv-first.md)。
 
-```
-// FILE: <adapters>/persistence/csv/csv_loan_repository.x   （新增或補方法）
-FUNCTION findById(id)
-  RETURN readRows("loans.csv").find(r -> r.id == id.value).map(toEntity)
+```java
+// FILE: <adapters>/persistence/csv/CsvLoanRepository.java   （補方法）
+@Override
+public Loan findById(LoanId id) {
+    for (Map<String, String> row : store.readAll(FILE)) {
+        if (row.get("id").equals(id.getValue())) {
+            return LoanMapper.toEntity(row);
+        }
+    }
+    return null;
+}
 ```
 
 若專案已有 DB adapter，**新增的 port 方法仍先在 CSV 版本實作並跑通**，再補 DB 版本（Step 9）。
@@ -148,19 +191,23 @@ FUNCTION findById(id)
 
 **動作**：
 1. controller / CLI handler —— 解析輸入 → Input DTO → 呼叫 use case → 轉換輸出
-2. 新的錯誤加進 `error_mapping`
+2. 新的錯誤加進 `ErrorMapping`
 
-```
-// FILE: <adapters>/http/loan_controller.x   （新增）
-// POST /loans/{id}/renew
-FUNCTION handleRenew(request)
-  result ← renewLoan.execute(RenewLoanInput(loanId: request.pathParam("id")))
-  ON ERROR e  → RETURN errorResponse(e)
-  RETURN HttpResponse(200, { dueDate: formatIsoDate(result.newDueDate) })
+```java
+// FILE: <adapters>/web/LoanController.java   （新增方法）
+// POST /api/loans/{id}/renew
+@RequestMapping(value = "/{id}/renew", method = RequestMethod.POST)
+public ResponseEntity<Map<String, Object>> renew(@PathVariable("id") String loanId) {
+    RenewLoanOutput out = renewLoan.execute(new RenewLoanInput(loanId));   // 錯誤交給 ErrorMapping
+    Map<String, Object> body = new HashMap<String, Object>();
+    body.put("dueDate", out.getNewDueDate().toString());
+    return new ResponseEntity<Map<String, Object>>(body, HttpStatus.OK);
+}
 
-// FILE: <adapters>/http/error_mapping.x   （新增對應）
-CannotRenewOverdueLoan, RenewLimitExceeded → (422, error.code)
-LoanNotFound                               → (404, error.code)
+// FILE: <adapters>/web/ErrorMapping.java   （新增對應）
+STATUS.put("CANNOT_RENEW_OVERDUE_LOAN", HttpStatus.UNPROCESSABLE_ENTITY);
+STATUS.put("RENEW_LIMIT_EXCEEDED", HttpStatus.UNPROCESSABLE_ENTITY);
+STATUS.put("LOAN_NOT_FOUND", HttpStatus.NOT_FOUND);
 ```
 
 ✅ **檢查點**：
@@ -171,21 +218,24 @@ LoanNotFound                               → (404, error.code)
 
 ## Step 7 — 組裝
 
-**動作**：在 `main`（或模組的 `module.x`）建立 use case、依設定選擇儲存 adapter、接到 controller、註冊路由。
+**動作**：在 `<main>`（Spring `@Configuration`）建立 use case；儲存 adapter 依 profile（`csv` / `sql`）選擇。
 
-```
-storage ← config.storage            // "csv"（預設）| "sql"
-loans   ← storage == "csv" ? CsvLoanRepository(config.dataDir) : SqlLoanRepository(db)
+```java
+// FILE: <main>/LendingConfig.java   （新增 bean）
+@Bean
+public RenewLoan renewLoan(LoanRepository loans, Clock clock) {
+    return new RenewLoan(loans, clock);
+}
 ```
 
-✅ **檢查點**：只有 `main` 中出現 `CsvXxx(...)` / `SqlXxx(...)` / `SystemClock()`。
+✅ **檢查點**：只有 `<main>` 中出現 `new CsvXxx(...)` / `new SqlXxx(...)` / `new SystemClock()`；use case 類別上沒有 `@Service`。
 
 ---
 
 ## Step 8 — 用 CSV 跑通端到端 ★ 交付點
 
 **動作**：
-1. 以 `storage=csv` 啟動，實際呼叫 API / CLI，確認主要成功路徑 + 一個錯誤
+1. 以 profile `csv` 啟動（`spring.profiles.active=csv`），實際呼叫 API / CLI，確認主要成功路徑 + 一個錯誤
 2. 打開 CSV 檔，確認資料寫入正確
 3. 跑過 [review/checklist.md](../review/checklist.md)
 4. 向使用者摘要，並詢問：**功能行為是否符合預期？要現在接資料庫，還是之後再接？**
@@ -199,7 +249,7 @@ loans   ← storage == "csv" ? CsvLoanRepository(config.dataDir) : SqlLoanReposi
 **動作**：依 [add-adapter.md 情境 A](add-adapter.md#情境-a替換-driven-adapter例csv--postgresql) 實作 DB adapter：
 1. 實作 `SqlXxxRepository`（含 mapper、migration）
 2. **跑同一套 contract test**，CSV 與 SQL 都要通過
-3. 切換設定 `storage=sql`，重跑 Step 8 的端到端驗證
+3. 切換成 profile `sql`，重跑 Step 8 的端到端驗證
 
 ✅ **檢查點**：`domain/`、`application/` 沒有任何變動。若需要改，代表 port 設計洩漏了技術細節，先修 port。
 
@@ -215,7 +265,7 @@ Step 0–3 中推理過的判斷寫進 `decisions.md`；試出的指令寫進 ca
 ```
 已完成「<功能名稱>」：
 - 規則：R7a/R7b/R7c → Loan.renew()
-- Use case：RenewLoan（application/use_cases/renew_loan/）
+- Use case：RenewLoan（application/usecase/renewloan/）
 - API：POST /loans/{id}/renew → 200 { dueDate }；錯誤 404/422
 - 測試：domain 3 個、use case 4 個、contract 1 組
 - 儲存：目前為 CSV（data/loans.csv）；資料庫尚未接上，確認後再進行

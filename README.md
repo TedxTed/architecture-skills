@@ -10,7 +10,7 @@
 |---|---|
 | 只有規則，沒有實作引導 | `workflows/`：新增功能、新增 adapter、重構舊程式的**逐步流程**，每一步有產出與檢查點 |
 | 名詞解釋太抽象 | 全專案共用**同一個範例領域**（圖書借閱），每個概念都附「放什麼 / 不放什麼」與判斷流程 |
-| 綁定特定語言或框架 | **語言中立的 pseudocode** 為主體，另有 TypeScript / Python / Go / Java 對照 |
+| 範例只有片段、或依賴新版語法 | **完整的 Java 範例**，刻意只用 **JDK 1.7 可編譯**的語法（舊專案可直接照抄）；另有 TypeScript / Python / Go 對照 |
 | 沒有資料夾結構 | `structure/`：完整目錄樹、每個資料夾的 import 白名單、by-layer 與 by-feature 兩種選擇 |
 | 一開始就被資料庫綁住 | **CSV 優先**：每個新功能先用 CSV 儲存跑通，使用者確認行為後才接資料庫，同一套 contract test 保證兩者一致 |
 | 寫完不知道對不對 | `review/`：分級審查清單 + 反模式前後對照 + 自動化依賴檢查設定 |
@@ -21,18 +21,18 @@
 architecture-skills/
 ├── shared/                          # 跨架構共用
 │   ├── example-domain.md            # 範例領域：圖書借閱（規則 R1–R7）
-│   ├── pseudocode-syntax.md         # pseudocode 語法約定
+│   ├── code-conventions.md          # 範例程式碼約定（Java，相容 JDK 1.7 / 1.8）
 │   ├── dependency-rule.md           # 依賴規則
 │   └── ports-and-adapters.md        # Port / Adapter 定義
 └── skills/
     └── clean-architecture/
         ├── SKILL.md                 # ★ 入口：讀取策略 + 硬規則 + 路徑對照 + 任務表
         ├── templates/project/       # 專案記憶模板：card / conventions / debt
-        ├── layers/                  # 每層一個檔案：遵循規則、pseudocode、與其他層的配合
-        ├── concepts/                # DTO、放置判斷、跨邊界、CSV 優先、檔案編碼
+        ├── layers/                  # 每層一個檔案：遵循規則、範例程式碼、與其他層的配合
+        ├── concepts/                # DTO、放置判斷、跨邊界、事件、前端、CSV 優先、檔案編碼
         ├── workflows/               # 新功能、新 use case、新 adapter、重構
         ├── structure/               # 選擇結構、A. by-layer、B. by-feature
-        ├── pseudocode/              # 端到端完整範例
+        ├── examples/                # 端到端完整範例（含測試替身）
         ├── languages/               # TS / Python / Go / Java 對照
         └── review/                  # 審查清單、反模式
 ```
@@ -122,15 +122,15 @@ your-project/docs/architecture/
 
 ```
 skills/<architecture>/
-├── SKILL.md         # 必要：純導覽，3k 字元內：讀取策略 + 硬規則（≤ 7 條）+ 任務表
+├── SKILL.md         # 必要：純導覽，約 3k 字元：讀取策略 + 硬規則（≤ 7 條）+ 任務表
 ├── templates/project/ # 必要：card.md（日常任務只讀它就能做事）、conventions、map、decisions、debt
 ├── layers/          # 必要：該架構的每一層 / 每個元件一個檔案，固定章節：
-│                    #   職責、遵循規則（必須/禁止）、放什麼、怎麼寫、pseudocode、
+│                    #   職責、遵循規則（必須/禁止）、放什麼、怎麼寫、範例程式碼、
 │                    #   與其他層的配合、測試、自我檢查
 ├── concepts/        # 必要：跨層的主題，每個概念都有「放什麼 / 不放什麼 / 範例」
 ├── workflows/       # 必要：至少 project-interview、new-feature、record-convention、wrap-up
 ├── structure/       # 必要：完整目錄樹 + import 白名單
-├── pseudocode/      # 必要：用圖書借閱領域的 BorrowBook 端到端範例
+├── examples/        # 必要：用圖書借閱領域的 BorrowBook 端到端範例
 ├── languages/       # 選用：只寫與 Clean Architecture 不同之處
 └── review/          # 必要：checklist.md、anti-patterns.md
 ```
@@ -139,7 +139,7 @@ skills/<architecture>/
 - **範例一律使用 [圖書借閱領域](shared/example-domain.md)**，方便跨架構比較
 - 與其他架構相同的概念，**連結到 `shared/`**，不要重寫
 - 每份 workflow 的每個步驟都要有**產出**與**檢查點**
-- 說明一律附 pseudocode，第一行標註 `// FILE: <佔位符>/...` 路徑，不寫死 `src/`
+- 說明一律附 Java 範例（遵守 shared/code-conventions.md，JDK 1.7 可編譯），第一行標註 `// FILE: <佔位符>/...` 路徑
 - 任務表中每種任務只列 1 份必讀；單一檔案盡量控制在 8KB 以內
 
 ## 授權

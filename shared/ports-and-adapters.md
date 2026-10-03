@@ -30,6 +30,8 @@
 3. **參數與回傳只用內層型別**（entity、value、DTO、基本型別）
 4. **一個 port 一個職責**：`Notifier` 不要同時負責存資料
 5. **時間、亂數、UUID 也是 port**：`Clock.now()`、`IdGenerator.next()` —— 這樣測試才能控制
+6. **Port 通常放 application**；只有當抽象本身就是業務概念、且 domain service 需要它時，才放 domain（例：`ExchangeRateProvider` 被匯率計算的 domain service 使用）
+7. **adapter 需要的資料由 use case 傳入**：adapter 不注入別的 port 自己查資料（見 anti-patterns #11）
 
 ## Adapter 的職責（只有三件事）
 
@@ -41,23 +43,38 @@
 
 ## 常見 Port 清單（圖書範例）
 
-```
-// FILE: <application>/ports/loan_repository.x
-PORT LoanRepository
-  FUNCTION findById(id: LoanId) -> Loan | Nothing
-  FUNCTION findOpenByMember(memberId: MemberId) -> List<Loan>
-  FUNCTION save(loan: Loan)
-  FUNCTION nextId() -> LoanId
+```java
+// FILE: <application>/port/LoanRepository.java
+public interface LoanRepository {
+    Loan findById(LoanId id);                       // 找不到回傳 null
+    List<Loan> findOpenByMember(MemberId memberId);
+    void save(Loan loan);
+    LoanId nextId();
+}
 
-// FILE: <application>/ports/clock.x
-PORT Clock
-  FUNCTION now() -> DateTime
+// FILE: <application>/port/Clock.java
+public interface Clock {
+    LocalDateTime now();
+}
 
-// FILE: <application>/ports/notifier.x
-PORT Notifier
-  FUNCTION notifyBookBorrowed(memberId: MemberId, bookTitle: String, dueDate: Date)
+// FILE: <application>/port/Notifier.java
+// 需要的資料由 use case 備齊傳入，adapter 不自己查
+public interface Notifier {
+    void notifyBookBorrowed(Recipient to, String bookTitle, LocalDate dueDate);
+}
 
-// FILE: <application>/ports/unit_of_work.x
-PORT UnitOfWork
-  FUNCTION run(work: Function) -> Result      // 在同一個交易中執行 work
+// FILE: <application>/port/Recipient.java
+public final class Recipient {
+    private final String email;
+    private final String name;
+    public Recipient(String email, String name) { this.email = email; this.name = name; }
+    public String getEmail() { return email; }
+    public String getName() { return name; }
+}
+
+// FILE: <application>/port/UnitOfWork.java
+// work 中的寫入在同一交易完成；work 丟出例外時全部還原
+public interface UnitOfWork {
+    void run(Runnable work);
+}
 ```

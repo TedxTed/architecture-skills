@@ -18,7 +18,7 @@
 | 業務規則交給 entity 方法 | `if openLoans.count >= 3`（這是 entity 的事） |
 | 副作用（通知）放在交易成功之後 | 在交易內寄信 |
 
-`IF` 只用於**流程判斷**：找不到資料、權限、是否需要通知。
+`if` 只用於**流程判斷**：找不到資料、權限、是否需要通知。
 
 ## 放什麼 / 不放什麼
 
@@ -47,79 +47,117 @@
    ```
 4. 用 in-memory fakes 寫測試：成功路徑 + 每種失敗 + 失敗時副作用沒發生
 
-## Pseudocode
+## 範例程式碼
 
+Java，相容 JDK 1.7。Port 的完整定義（`LoanRepository`、`Clock`、`Notifier`、`UnitOfWork`）見 [ports-and-adapters.md](../../../shared/ports-and-adapters.md#常見-port-清單圖書範例)。
+
+```java
+// FILE: <application>/AppException.java
+public class AppException extends RuntimeException {
+    private final String code;
+    public AppException(String code) { super(code); this.code = code; }
+    public String getCode() { return code; }
+}
+// 使用：throw new AppException("MEMBER_NOT_FOUND");
+// 也可以為每種錯誤建子類別（MemberNotFoundException extends AppException）
+
+// FILE: <application>/usecase/borrowbook/BorrowBookInput.java
+public final class BorrowBookInput {
+    private final String memberId;
+    private final String bookId;
+    public BorrowBookInput(String memberId, String bookId) { this.memberId = memberId; this.bookId = bookId; }
+    public String getMemberId() { return memberId; }
+    public String getBookId() { return bookId; }
+}
+
+// FILE: <application>/usecase/borrowbook/BorrowBookOutput.java
+public final class BorrowBookOutput {
+    private final String loanId;
+    private final LocalDate dueDate;
+    public BorrowBookOutput(String loanId, LocalDate dueDate) { this.loanId = loanId; this.dueDate = dueDate; }
+    public String getLoanId() { return loanId; }
+    public LocalDate getDueDate() { return dueDate; }
+}
+
+// FILE: <application>/usecase/borrowbook/BorrowBook.java
+// 禁止 import：adapter、infrastructure、Spring、JPA、Servlet
+public class BorrowBook {
+    private final MemberRepository members;
+    private final BookRepository books;
+    private final LoanRepository loans;
+    private final Clock clock;
+    private final Notifier notifier;
+    private final UnitOfWork uow;
+
+    public BorrowBook(MemberRepository members, BookRepository books, LoanRepository loans,
+                      Clock clock, Notifier notifier, UnitOfWork uow) {
+        this.members = members;
+        this.books = books;
+        this.loans = loans;
+        this.clock = clock;
+        this.notifier = notifier;
+        this.uow = uow;
+    }
+
+    public BorrowBookOutput execute(BorrowBookInput input) {
+        // 1. 輸入轉換（Value 建構子會檢查格式）
+        MemberId memberId = new MemberId(input.getMemberId());
+        BookId bookId = new BookId(input.getBookId());
+        LocalDateTime now = clock.now();
+
+        // 2. 載入
+        Member member = members.findById(memberId);
+        if (member == null) {
+            throw new AppException("MEMBER_NOT_FOUND");
+        }
+        final Book book = books.findById(bookId);          // Java 7：匿名類別使用的變數須為 final
+        if (book == null) {
+            throw new AppException("BOOK_NOT_FOUND");
+        }
+        List<Loan> openLoans = loans.findOpenByMember(memberId);
+
+        // 3. 規則：全部交給 entity
+        member.assertCanBorrow(openLoans, now);
+        book.markAsLent();
+        final Loan loan = Loan.open(loans.nextId(), memberId, bookId, now);
+
+        // 4. 儲存（同一交易）
+        uow.run(new Runnable() {
+            @Override
+            public void run() {
+                books.save(book);
+                loans.save(loan);
+            }
+        });
+
+        // 5. 副作用（交易成功後）
+        notifier.notifyBookBorrowed(new Recipient(member.getEmail(), member.getName()),
+                book.getTitle(), loan.getDueDate());
+
+        // 6. 回傳 DTO，不回傳 entity
+        return new BorrowBookOutput(loan.getId().getValue(), loan.getDueDate());
+    }
+}
 ```
-// FILE: <application>/ports/loan_repository.x
-PORT LoanRepository
-  FUNCTION findById(id: LoanId) -> Loan | Nothing
-  FUNCTION findOpenByMember(memberId: MemberId) -> List<Loan>
-  FUNCTION save(loan: Loan)
-  FUNCTION nextId() -> LoanId
 
-// FILE: <application>/ports/clock.x          （by-feature 放 shared_kernel）
-PORT Clock
-  FUNCTION now() -> DateTime
+> Java 8 可把 `new Runnable() { ... }` 換成 `() -> { books.save(book); loans.save(loan); }`。
 
-// FILE: <application>/ports/notifier.x
-PORT Notifier
-  FUNCTION notifyBookBorrowed(memberId: MemberId, bookTitle: String, dueDate: Date)
+查詢型 use case 可以跳過 entity，直接用 Query Port。多個純查詢（沒有規則、只有一行委派）可以合併成**一個查詢類別、多個方法**，
+這是「一個 use case 一個類別」的唯一例外；寫入型 use case 仍然一個類別一個操作：
 
-// FILE: <application>/ports/unit_of_work.x
-PORT UnitOfWork
-  FUNCTION run(work: Function)              // work 中的寫入在同一交易
+```java
+// FILE: <application>/usecase/LendingQueryService.java
+public class LendingQueryService {
+    private final LendingQueries queries;       // 回傳 read model DTO 的 port
 
-// FILE: <application>/errors.x
-APP_ERROR MemberNotFound  code "MEMBER_NOT_FOUND"
-APP_ERROR BookNotFound    code "BOOK_NOT_FOUND"
+    public LendingQueryService(LendingQueries queries) { this.queries = queries; }
 
-// FILE: <application>/use_cases/borrow_book/borrow_book_dto.x
-DTO BorrowBookInput  { memberId: String, bookId: String }
-DTO BorrowBookOutput { loanId: String, dueDate: Date }
+    public List<BookView> listBooks() { return queries.listBooks(); }
 
-// FILE: <application>/use_cases/borrow_book/borrow_book.x
-USE_CASE BorrowBook
-  DEPENDS ON members: MemberRepository, books: BookRepository, loans: LoanRepository,
-             clock: Clock, notifier: Notifier, uow: UnitOfWork
-
-  FUNCTION execute(input: BorrowBookInput) -> BorrowBookOutput
-    // 1. 輸入轉換
-    memberId ← TRY MemberId(input.memberId)
-    bookId   ← TRY BookId(input.bookId)
-    now      ← clock.now()
-
-    // 2. 載入
-    member ← members.findById(memberId)
-    IF member == Nothing  FAIL MemberNotFound
-    book ← books.findById(bookId)
-    IF book == Nothing    FAIL BookNotFound
-    openLoans ← loans.findOpenByMember(memberId)
-
-    // 3. 規則：全部交給 entity
-    TRY member.assertCanBorrow(openLoans, now)
-    TRY book.markAsLent()
-    loan ← Loan.open(loans.nextId(), memberId, bookId, now)
-
-    // 4. 儲存
-    TRY uow.run(() -> books.save(book); loans.save(loan))
-
-    // 5. 副作用
-    notifier.notifyBookBorrowed(memberId, book.title, loan.dueDate)
-
-    // 6. 回傳 DTO
-    RETURN BorrowBookOutput(loanId: loan.id.value, dueDate: loan.dueDate)
-
-  MUST NOT import adapters, infrastructure, http, orm, framework
-```
-
-查詢型 use case 可以跳過 entity，直接用 Query Port：
-
-```
-// FILE: <application>/use_cases/list_member_loans/list_member_loans.x
-USE_CASE ListMemberLoans
-  DEPENDS ON queries: LoanQueries
-  FUNCTION execute(input) -> List<LoanSummary>
-    RETURN queries.listByMember(MemberId(input.memberId))
+    public List<LoanSummary> listMemberLoans(String memberId) {
+        return queries.listOpenLoansByMember(new MemberId(memberId));
+    }
+}
 ```
 
 ## 與其他層的配合
@@ -153,20 +191,35 @@ USE_CASE ListMemberLoans
 
 用 in-memory fakes 實作 port，不需要 DB 與框架：
 
-```
-// FILE: <tests>/application/borrow_book_test.x
-TEST "會員不存在時回報 MemberNotFound，且不寄信"
-  notifier ← SpyNotifier()
-  useCase  ← BorrowBook(InMemoryMembers([]), InMemoryBooks([book("b1")]), InMemoryLoans([]),
-                        FixedClock(2026-01-01), notifier, NoopUnitOfWork())
-  EXPECT useCase.execute(BorrowBookInput("nobody", "b1")) FAILS WITH MemberNotFound
-  EXPECT notifier.calls.count == 0
+```java
+// FILE: <tests>/application/BorrowBookTest.java     （JUnit 4）
+public class BorrowBookTest {
+    @Test
+    public void 會員不存在時回報MEMBER_NOT_FOUND_且不寄信() {
+        SpyNotifier notifier = new SpyNotifier();
+        BorrowBook useCase = new BorrowBook(
+                new InMemoryMemberRepository(),
+                new InMemoryBookRepository(availableBook("b1")),
+                new InMemoryLoanRepository(),
+                new FixedClock(LocalDateTime.of(2026, 1, 1, 10, 0)),
+                notifier,
+                new DirectUnitOfWork());              // 直接執行 work，不做交易
+
+        try {
+            useCase.execute(new BorrowBookInput("nobody", "b1"));
+            fail("應該丟出 AppException");
+        } catch (AppException e) {
+            assertEquals("MEMBER_NOT_FOUND", e.getCode());
+        }
+        assertEquals(0, notifier.getCallCount());
+    }
+}
 ```
 
 ## 自我檢查
 
 - [ ] 沒有 import adapters / infrastructure / 框架
-- [ ] `IF` 只做流程判斷，沒有業務規則
+- [ ] `if` 只做流程判斷，沒有業務規則
 - [ ] 回傳 DTO，不是 entity
 - [ ] port 方法名是業務語言，參數 / 回傳是內層型別
 - [ ] 測試只用 fakes，此時可以完全沒有 adapter

@@ -45,11 +45,11 @@ modules/                            features/
 ├── lending/                        ├── borrow-book/
 │   ├── domain/   ← Loan 只有一份     │   ├── domain/   ← Loan？
 │   ├── application/                │   └── ...
-│   │   └── use_cases/              ├── return-book/
-│   │       ├── borrow_book/        │   ├── domain/   ← Loan 又一份？
-│   │       ├── return_book/        │   └── ...
-│   │       └── renew_loan/         └── renew-loan/
-│   └── adapters/
+│   │   └── usecase/                ├── return-book/
+│   │       ├── borrowbook/         │   ├── domain/   ← Loan 又一份？
+│   │       ├── returnbook/         │   └── ...
+│   │       └── renewloan/          └── renew-loan/
+│   └── adapter/
 └── catalog/
 ```
 
@@ -70,17 +70,17 @@ modules/                            features/
 保留依賴方向，減少檔案數量：
 
 ```
-<domain>/           所有 entity 平放，不分子資料夾
+<domain>/                 所有 entity 平放，不分子 package
 <application>/
-  ports.x           所有 port 放同一檔
-  <use_case>.x      一個 use case 一檔，DTO 寫在同一檔
+  port/                   所有 port 介面放同一個 package
+  usecase/                不分子 package；DTO 寫成 use case 的巢狀類別（BorrowBook.Input / BorrowBook.Output）
 <adapters>/
-  http.x
-  persistence.x
-<main>
+  web/                    controller + 錯誤對應
+  persistence/            repository 實作 + mapper
+<main>                    一個 @Configuration
 ```
 
-可省略：輸入 port 介面、Presenter、獨立 mapper 檔。
+可省略：輸入 port 介面、Presenter、獨立 mapper 類別。
 **不可省略**：domain / application 不 import 框架；output port 介面。
 
 ## 是否需要 Clean Architecture
@@ -95,12 +95,14 @@ modules/                            features/
 
 **沿用使用者既有命名**，不強迫改名。
 
-| 本 skill | 其他常見名稱 |
+| 本 skill（Java package） | 其他常見名稱 |
 |---|---|
-| `domain/` | `entities/`、`core/`、`model/` |
-| `application/` | `usecases/`、`app/` |
-| `application/ports/` | `interfaces/`、`gateways/`、`contracts/` |
-| `adapters/` | `interface_adapters/`、`infrastructure/`（Onion 風格）、`delivery/` + `repository/`（Go） |
-| `infrastructure/` | `frameworks/`、`drivers/`、`platform/`、`config/` |
-| `main` | `bootstrap/`、`cmd/`、`app.module`、`container` |
-| `modules/`（B） | `features/`、`contexts/`、`components/` |
+| `domain` | `model`、`core`、`entity` |
+| `application` | `usecase`、`app`、`service`（注意：不是 Spring 的 `@Service` 層） |
+| `application.port` | `port.out`、`gateway`、`spi` |
+| `adapter` | `adapter.in` / `adapter.out`、`infrastructure`（Onion 風格）、`web` + `persistence` |
+| `config`（`<main>`） | `bootstrap`、`configuration`、`boot` |
+| 模組（B） | `feature`、`context`、`module` |
+
+傳統 Spring 分層專案常見的 `controller / service / dao / entity` 不等於本 skill 的四層：
+`service` 裡通常混著業務規則與流程，`entity` 通常是 JPA 類別。重構方式見 [refactor-legacy.md](../workflows/refactor-legacy.md)。

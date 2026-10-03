@@ -1,101 +1,95 @@
 # 結構 A：依層分（by-layer）
 
-適用：單一業務子領域、小到中型專案。
+適用：單一業務子領域、小到中型專案。以 Maven / Gradle 的 Java 專案為例，base package 為 `com.example.library`。
 
 ## 目錄樹
 
 ```
 project/
-├── src/
+├── pom.xml
+├── src/main/java/com/example/library/
 │   ├── domain/                              # ── Entities 層 ──
-│   │   ├── member.x                         # Entity
-│   │   ├── book.x                           # Entity
-│   │   ├── loan.x                           # Entity
-│   │   ├── ids.x                            # Value objects
-│   │   ├── money.x                          # Value object
-│   │   ├── errors.x                         # 領域錯誤
-│   │   └── services/                        # （選用）跨 entity 的純規則
+│   │   ├── Member.java, Book.java, Loan.java          # Entity
+│   │   ├── MemberId.java, BookId.java, LoanId.java    # Value
+│   │   ├── MemberTier.java, BookStatus.java           # enum
+│   │   ├── DomainException.java + 各領域錯誤           # BookNotAvailableException …
+│   │   └── service/                                   # （選用）跨 entity 的純規則
 │   │
 │   ├── application/                         # ── Use Cases 層 ──
-│   │   ├── errors.x                         # 應用錯誤（NotFound 類）
-│   │   ├── ports/                           # 輸出 port 介面（只有介面！）
-│   │   │   ├── member_repository.x
-│   │   │   ├── book_repository.x
-│   │   │   ├── loan_repository.x
-│   │   │   ├── loan_queries.x               # 查詢用 read model port
-│   │   │   ├── clock.x
-│   │   │   ├── notifier.x
-│   │   │   └── unit_of_work.x
-│   │   └── use_cases/
-│   │       ├── borrow_book/
-│   │       │   ├── borrow_book.x            # Interactor
-│   │       │   └── borrow_book_dto.x        # Input / Output
-│   │       ├── return_book/
-│   │       ├── renew_loan/
-│   │       └── list_member_loans/
+│   │   ├── AppException.java                          # 應用錯誤（NOT_FOUND 類）
+│   │   ├── port/                                      # 輸出 port 介面（只有介面與它用到的 DTO）
+│   │   │   ├── MemberRepository.java, BookRepository.java, LoanRepository.java
+│   │   │   ├── LendingQueries.java, LoanSummary.java  # 查詢用 read model port
+│   │   │   ├── Clock.java, UnitOfWork.java
+│   │   │   └── Notifier.java, Recipient.java
+│   │   └── usecase/
+│   │       ├── borrowbook/
+│   │       │   ├── BorrowBook.java                    # Interactor
+│   │       │   ├── BorrowBookInput.java
+│   │       │   └── BorrowBookOutput.java
+│   │       ├── returnbook/
+│   │       ├── renewloan/
+│   │       └── LendingQueryService.java               # 純查詢合併
 │   │
-│   ├── adapters/                            # ── Interface Adapters 層 ──
-│   │   ├── http/                            # driving
-│   │   │   ├── loan_controller.x
-│   │   │   ├── error_mapping.x
-│   │   │   └── schemas.x                    # request/response 格式定義
-│   │   ├── cli/                             # driving
-│   │   │   └── admin_commands.x
-│   │   ├── persistence/                     # driven
-│   │   │   ├── mappers.x                    # entity ⇄ row（CSV 與 SQL 共用）
-│   │   │   ├── csv/                         # ① 新功能先做這個（見 concepts/csv-first.md）
-│   │   │   │   ├── csv_store.x
-│   │   │   │   ├── csv_loan_repository.x
-│   │   │   │   └── csv_unit_of_work.x
-│   │   │   └── sql/                         # ② 使用者確認後才做
-│   │   │       ├── models.x                 # ORM model / table 定義
-│   │   │       ├── sql_loan_repository.x
-│   │   │       ├── sql_loan_queries.x
-│   │   │       └── sql_unit_of_work.x
-│   │   ├── notification/                    # driven
-│   │   │   └── smtp_notifier.x
-│   │   └── time/
-│   │       └── system_clock.x
+│   ├── adapter/                             # ── Interface Adapters 層 ──
+│   │   ├── web/                                       # driving
+│   │   │   ├── LoanController.java
+│   │   │   ├── ErrorMapping.java                      # @ControllerAdvice
+│   │   │   └── BorrowRequest.java, BorrowResponse.java
+│   │   ├── cli/                                       # driving
+│   │   │   └── AdminCli.java
+│   │   ├── persistence/                               # driven
+│   │   │   ├── LoanMapper.java                        # entity ⇄ row（CSV 與 SQL 共用欄位名）
+│   │   │   ├── csv/                                   # ① 新功能先做這個（見 concepts/csv-first.md）
+│   │   │   │   ├── CsvStore.java
+│   │   │   │   ├── CsvLoanRepository.java
+│   │   │   │   └── CsvUnitOfWork.java
+│   │   │   └── sql/                                   # ② 使用者確認後才做
+│   │   │       ├── SqlLoanRepository.java
+│   │   │       ├── SqlLendingQueries.java
+│   │   │       └── SpringUnitOfWork.java
+│   │   ├── notification/SmtpNotifier.java             # driven
+│   │   └── time/SystemClock.java
 │   │
-│   ├── infrastructure/                      # ── Frameworks & Drivers 層 ──
-│   │   ├── config.x                         # 讀 env
-│   │   ├── database.x                       # 連線池
-│   │   └── web_server.x                     # 框架初始化
-│   │
-│   └── main.x                               # Composition root
+│   └── config/                              # ── Frameworks & Drivers 層：Composition root ──
+│       ├── LendingConfig.java                         # @Bean：use case、與儲存無關的 adapter
+│       ├── CsvStorageConfig.java                      # @Profile("csv")
+│       └── SqlStorageConfig.java                      # @Profile("sql")
 │
-├── migrations/                              # DB schema migration
-└── tests/
+├── src/main/resources/
+│   ├── application.properties
+│   └── db/migration/                        # DB schema migration（Flyway 等）
+├── data-seed/                               # CSV 範例資料
+└── src/test/java/com/example/library/
     ├── domain/                              # 純單元測試
-    ├── application/                         # use case 測試 + fakes
+    ├── application/                         # use case 測試
     ├── fakes/                               # in-memory port 實作
-    └── integration/                         # adapter 接真 DB / HTTP
+    └── contract/                            # repository contract test
 ```
 
-## 每個資料夾的 import 白名單
+## 每個 package 的 import 白名單
 
-| 資料夾 | 可 import |
+| Package | 可 import |
 |---|---|
-| `domain/` | `domain/` |
-| `application/` | `domain/`、`application/` |
-| `adapters/` | `domain/`、`application/`、外部函式庫 |
-| `infrastructure/` | 外部函式庫（通常不需要 import 內層） |
-| `main` | 全部 |
-| `tests/fakes/` | `domain/`、`application/` |
+| `domain` | `domain`、JDK（`java.util`、`java.time` / `org.threeten.bp`） |
+| `application` | `domain`、`application`、JDK |
+| `adapter` | `domain`、`application`、外部函式庫（Spring MVC、JDBC、Commons CSV…） |
+| `config` | 全部 |
+| `test.fakes` | `domain`、`application` |
 
-建議用工具強制執行，見各 [languages/](../languages/) 文件的「強制依賴規則」段落。
+強制方式見 [languages/java.md](../languages/java.md#強制依賴規則)（Maven 多模組、ArchUnit、或零依賴的檢查程式）。
 
 ## 新增功能時要動的檔案（以「續借」為例）
 
 ```
-+ src/domain/loan.x                          修改：加 renew()
-+ src/domain/errors.x                        修改：加 RenewLimitExceeded
-+ src/application/use_cases/renew_loan/      新增
-+ src/adapters/http/loan_controller.x        修改：加 handleRenew
-+ src/adapters/http/error_mapping.x          修改：加錯誤對應
-+ src/main.x                                 修改：組裝 RenewLoan
-+ tests/domain/loan_test.x                   修改
-+ tests/application/renew_loan_test.x        新增
+~ domain/Loan.java                                修改：加 renew()
++ domain/RenewLimitExceededException.java         新增
++ application/usecase/renewloan/                  新增：RenewLoan、RenewLoanInput、RenewLoanOutput
+~ adapter/web/LoanController.java                 修改：加 renew()
+~ adapter/web/ErrorMapping.java                   修改：加錯誤對應
+~ config/LendingConfig.java                       修改：@Bean RenewLoan
+~ test/.../domain/LoanTest.java                   修改
++ test/.../application/RenewLoanTest.java         新增
 ```
 
-缺點也在這裡可見：一個功能散落在 4 個頂層資料夾。功能變多時改用 [by-feature](by-feature.md)。
+缺點也在這裡可見：一個功能散落在 4 個頂層 package。功能變多時改用 [by-feature](by-feature.md)。

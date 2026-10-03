@@ -84,15 +84,31 @@ iconv -f CP950 -t UTF-8 file > /dev/null && echo OK
 | TypeScript / Node | Node 內建不支援 → `iconv-lite`：`iconv.decode(buffer, "cp950")` / `iconv.encode(text, "cp950")` |
 | Python | 內建：`open(path, encoding="cp950")` |
 | Go | `golang.org/x/text/encoding/traditionalchinese.Big5` 搭配 `transform.NewReader` |
-| Java | `Charset.forName("MS950")` |
+| Java | `Charset.forName("MS950")`；寫入時搭配 `CodingErrorAction.REPORT` 才會在無法表示時報錯（見 csv-first.md 的 `CsvStore`） |
 | C# | .NET Core 以上需先 `Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)`，再 `Encoding.GetEncoding(950)` |
 
 編碼是 **adapter 的細節**：由 `CsvStore` 依設定處理，domain 與 application 只看到一般字串。
 
+```java
+// FILE: <main>/CsvStorageConfig.java    （節錄）
+@Bean
+public CsvStore csvStore(@Value("${csv.encoding:UTF-8}") String encoding) {   // UTF-8 / MS950
+    return new CsvStore(new File(dataDir), Charset.forName(encoding));
+}
 ```
-// FILE: <main>
-store ← CsvStore(config.dataDir, encoding: config.csvEncoding)    // "utf-8" | "utf-8-bom" | "cp950"
-```
+
+## Java 原始碼是 Big5 時
+
+Java 原始碼本身是 Big5 時，**編譯器也要知道**，否則中文字串與註解會變成亂碼：
+
+| 工具 | 設定 |
+|---|---|
+| javac | `javac -encoding MS950 ...` |
+| Maven | `<properties><project.build.sourceEncoding>MS950</project.build.sourceEncoding></properties>` |
+| Gradle | `tasks.withType(JavaCompile) { options.encoding = 'MS950' }` |
+| Eclipse / IntelliJ | 專案設定的 File encoding 改成 MS950 / Big5 |
+
+AI 新增 Java 檔案時，一樣要以 MS950 寫入（指令見上方），並確認建置設定已指定編碼。
 
 ## 混用編碼的專案
 

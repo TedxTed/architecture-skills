@@ -1,18 +1,23 @@
 # Python 對照
 
-## Pseudocode → Python
+## Java → Python
 
-| Pseudocode | Python 慣用寫法 |
+本 skill 的範例是 Java。轉成 Python 時對照下表：
+
+| Java 範例中的寫法 | Python 慣用寫法 |
 |---|---|
-| `ENTITY` | 一般 `class`，或 `@dataclass`（非 frozen） |
-| `VALUE` | `@dataclass(frozen=True)` 或 `NewType` |
-| `ENUM` | `enum.Enum` / `StrEnum` |
-| `PORT` | `typing.Protocol`（推薦，結構型別）或 `abc.ABC` |
-| `ADAPTER ... IMPLEMENTS` | 實作 Protocol 的方法即可（不必繼承） |
-| `USE_CASE` | `class` + `execute()` 或 `__call__()` |
-| `DTO` | `@dataclass(frozen=True)` |
-| `FAIL` | `raise DomainError(...)` |
-| `Nothing` | `None` |
+| Entity：`class` + `private` 欄位 + 業務方法 | 一般 `class`，或 `@dataclass`（非 frozen） |
+| Value：`final class LoanId` + `equals` | `@dataclass(frozen=True)` 或 `NewType` |
+| `enum BookStatus` | `enum.Enum` / `StrEnum` |
+| Port：`interface` | `typing.Protocol`（推薦，結構型別）或 `abc.ABC` |
+| Adapter：`class X implements Port` | 實作 Protocol 的方法即可（不必繼承） |
+| Use case：`class` + `execute(Input)` | `class` + `execute()` 或 `__call__()` |
+| DTO：`final class` + `final` 欄位 + getter | `@dataclass(frozen=True)` |
+| `throw new XxxException()` | `raise DomainError(...)` |
+| 找不到回傳 `null` | `None` |
+| 匿名類別 `new Runnable() { ... }` | 內部函式或 `lambda` |
+| `LocalDate` / `LocalDateTime` | `datetime.date` / `datetime.datetime` |
+| Spring `@Configuration` + `@Bean` | `main.py` 手動組裝 |
 
 > **Pydantic 放哪？** Pydantic model 屬於 adapter 層（HTTP schema）。domain / application 用標準庫 `dataclass`，避免依賴第三方套件。
 
@@ -126,7 +131,9 @@ class BorrowBook:
             self._loans.save(loan)
         self._uow.run(work)
 
-        self._notifier.notify_book_borrowed(member.id, book.title, loan.due_date)
+        self._notifier.notify_book_borrowed(
+            Recipient(email=member.email, name=member.name), book.title, loan.due_date
+        )
         return BorrowBookOutput(loan_id=loan.id, due_date=loan.due_date)
 ```
 
