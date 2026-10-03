@@ -38,8 +38,8 @@ Q6. 它是否是內層需要、但由外部提供的能力（存取、寄送、�
 | `request.getMemberId()` → `BorrowBookInput` | `adapter/web/` | 格式轉換 |
 | `BookNotAvailableException` → HTTP 409 | `adapter/web/ErrorMapping.java` | 錯誤翻譯 |
 | `@NotNull @Size(max = 64)`、格式不符回 400 | `adapter/web/` | 傳輸格式驗證 |
-| `new SqlLoanRepository(dataSource)` | `config/`（`@Configuration`） | 組裝 |
-| `@Value("${spring.datasource.url}")`、`System.getenv(...)` | `config/` | 讀設定 |
+| `new SqlLoanRepository(dataSource)` | `config/`（組裝類別） | 組裝 |
+| `config.getProperty("db.url")`、`System.getenv(...)` | `config/` | 讀設定 |
 | 寄信的 HTML 模板 | `adapter/notification/` | 呈現細節 |
 | 「VIP 會員借書不寄信」 | `application/usecase/borrowbook/BorrowBook.java` | 跟寄信這個「應用行為」有關 → 應用規則 |
 | 「VIP 會員可借 5 本」 | `domain/Member.java` | 跟借閱本身有關 → 企業規則 |

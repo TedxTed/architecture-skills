@@ -18,7 +18,7 @@
 | 讀什麼 | 得知 |
 |---|---|
 | `pom.xml` / `build.gradle` / `package.json` / `pyproject.toml` / `go.mod` | 語言、框架、ORM、測試框架 |
-| Java：`pom.xml` 的 `maven.compiler.source` / `java.version`、`project.build.sourceEncoding`，以及 Spring 版本 | **JDK 版本**（決定能不能用 lambda、`Optional`、`java.time`）、原始碼編碼 |
+| Java：`pom.xml` 的 `maven.compiler.source` / `java.version`、`project.build.sourceEncoding`，以及 Web 框架與 DI 方式（Servlet、Spring、JAX-RS…） | **JDK 版本**（決定能不能用 lambda、`Optional`、`java.time`）、原始碼編碼 |
 | Java：`src/main/java` 往下到 base package 再兩層的 package 名稱 | base package、是否已分層、模組名稱 |
 | 根目錄與 `src/` 往下兩層的**資料夾名稱**（不開檔案） | 是否已分層、A / B 結構、模組名稱 |
 | 既有的 CLAUDE.md / AGENTS.md / README（只看標題與架構相關段落） | 使用者已寫下的慣例 |
@@ -46,7 +46,7 @@
 可以直接回「全部預設」，或只回要改的題號（例如「3B、6：handle」）。
 
 【已偵測，請確認】
-- 語言 / 框架：Java 1.7 / Spring 4.3（Spring MVC）
+- 語言 / 框架：Java 1.7 / Servlet 3.0（未偵測到 DI 框架）
 - 資料存取：JdbcTemplate；建置：Maven；base package：com.example.library
 - 原始碼編碼：pom.xml 設定為 MS950
 
@@ -96,7 +96,7 @@
 | 找不到資料的表示？回傳 `null`（預設，Java 7 相容）/ `Optional` | Java 8 以上 |
 | 回呼寫法？匿名類別（預設，Java 7 相容）/ lambda | Java 8 以上 |
 | 是否使用 Lombok？不使用（預設）/ 使用（DTO 用 `@Value`，但 domain 不加） | Java 專案 |
-| DI 方式？Spring `@Configuration` + `@Bean`（預設）/ 手動組裝 | 使用 Spring 等內建 DI 的框架 |
+| Web 框架與組裝方式？無框架 / Servlet + 普通組裝類別（預設）/ Spring Java Config / Spring XML / JAX-RS / 其他 | 偵測不到，或偵測到多種時 |
 | 交易方式？UnitOfWork port（預設）/ decorator | 一個操作會改多個 entity |
 | 是否保留輸入 port 介面？省略（預設）/ 保留 | 團隊規模大、需要替換 use case 實作 |
 | 舊程式先重構哪個功能？ | 題 1 選 C |
@@ -108,7 +108,7 @@
 依 [templates/project/](../templates/project/card.md) 建立 `docs/architecture/` 的五個檔案：
 card、conventions、map、decisions、debt。
 
-- **常用指令**：Step 1 讀到的建置設定（Maven：`mvn compile`、`mvn test`、`mvn spring-boot:run`；npm scripts；Makefile 等），直接填進 card 的「常用指令」
+- **常用指令**：Step 1 讀到的建置設定（Maven：`mvn compile`、`mvn test`、啟動指令；npm scripts；Makefile 等），直接填進 card 的「常用指令」
 - **map.md**：只依資料夾名稱列出模組標題，內容留空；**不要為了填 map 掃描原始碼**，之後每次任務收尾時逐步補上
 - **decisions.md**：只放標頭
 
@@ -146,7 +146,7 @@ Java（Maven / Gradle）以 package 表示，`{base}` = `src/main/java/<base pac
 
 本 skill 的範例本身就是 Java（JDK 1.7 相容）。
 
-- **Java 專案**：只讀 `languages/java.md` 的「依 JDK 版本調整」「Spring 整合」「強制依賴規則」三個章節
+- **Java 專案**：只讀 `languages/java.md` 的「依 JDK 版本調整」「強制依賴規則」；**有用 Spring 才讀**「使用 Spring 時」
 - **其他語言**：先搜尋 `^## ` 取得章節列表，只讀「Java → 該語言」對照表與框架整合章節
 
 把以下 6 項各寫成一行到 card 的「語言寫法」區塊：

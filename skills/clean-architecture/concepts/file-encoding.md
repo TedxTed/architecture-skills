@@ -90,11 +90,8 @@ iconv -f CP950 -t UTF-8 file > /dev/null && echo OK
 編碼是 **adapter 的細節**：由 `CsvStore` 依設定處理，domain 與 application 只看到一般字串。
 
 ```java
-// FILE: <main>/CsvStorageConfig.java    （節錄）
-@Bean
-public CsvStore csvStore(@Value("${csv.encoding:UTF-8}") String encoding) {   // UTF-8 / MS950
-    return new CsvStore(new File(dataDir), Charset.forName(encoding));
-}
+// FILE: <main>/LendingModule.java    （節錄；設定檔 csv.encoding=MS950）
+CsvStore store = new CsvStore(dataDir, Charset.forName(config.getProperty("csv.encoding", "UTF-8")));
 ```
 
 ## Java 原始碼是 Big5 時

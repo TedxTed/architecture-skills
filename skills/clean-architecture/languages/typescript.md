@@ -17,7 +17,7 @@
 | 找不到回傳 `null` | `null` |
 | 匿名類別 `new Runnable() { ... }` | 箭頭函式 `async () => { ... }` |
 | `LocalDate` / `LocalDateTime` | `Date` 或 date-only 字串（`"2026-10-17"`）；需要時用 date-fns / dayjs |
-| Spring `@Configuration` + `@Bean` | 手寫 `main.ts` 組裝，或 NestJS module 的 factory provider |
+| 組裝類別（`LendingModule`） | 手寫 `main.ts` 組裝，或 NestJS module 的 factory provider |
 
 ## 資料夾與檔名
 

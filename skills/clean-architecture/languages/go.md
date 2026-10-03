@@ -17,7 +17,7 @@
 | 呼叫可能丟例外的方法 | `if err != nil { return ..., err }` |
 | 找不到回傳 `null` | `nil`，或回傳 `ErrNotFound` |
 | 匿名類別 `new Runnable() { ... }` | `func(ctx context.Context) error { ... }` |
-| Spring `@Configuration` + `@Bean` | `cmd/server/main.go` 手動組裝 |
+| 組裝類別（`LendingModule`） | `cmd/server/main.go` 手動組裝 |
 
 > **`context.Context` 可以進入 application 層嗎？** 可以。它是標準庫，用於取消與逾時，不是框架。但**不要**把 `*gin.Context` / `echo.Context` 傳進去。Domain 層通常不需要 ctx。
 

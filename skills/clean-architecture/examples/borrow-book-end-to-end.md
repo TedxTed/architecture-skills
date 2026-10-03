@@ -50,7 +50,7 @@ src/test/java/com/example/library/lending/   <tests>
 | ④ ⑤ | 應用錯誤、Port | [02-use-cases.md](../layers/02-use-cases.md#範例程式碼)、[ports-and-adapters.md](../../../shared/ports-and-adapters.md#常見-port-清單圖書範例) |
 | ⑥ ⑦ | DTO、Use case | [02-use-cases.md](../layers/02-use-cases.md#範例程式碼) |
 | ⑧ ⑨ | Controller、錯誤對應、Mapper、CSV repository、Notifier、Clock | [03-interface-adapters.md](../layers/03-interface-adapters.md#範例程式碼)；CsvStore / CsvUnitOfWork 見 [csv-first.md](../concepts/csv-first.md#樣板) |
-| ⑩ | Spring Java Config | [04-frameworks-drivers.md](../layers/04-frameworks-drivers.md#範例程式碼) |
+| ⑩ | 組裝類別 `LendingModule` | [04-frameworks-drivers.md](../layers/04-frameworks-drivers.md#範例程式碼) |
 | ⑪ ⑫ | 測試與 fakes | 下方 |
 
 本頁只補上其他文件沒有的部分：`BookRepository` port 與完整的測試替身。

@@ -12,7 +12,7 @@
 
 Clean Architecture｜Skill：`<docs/architecture-skills/skills/clean-architecture/>`
 形態：`<純後端 / 全端（後端在 server/）/ 純前端 / CLI>`
-語言 / 框架：`<Java 1.7 / Spring 4.3 MVC / Maven>`｜DB：`<Oracle + JdbcTemplate>`｜base package：`<com.example.library>`
+語言 / 框架：`<Java 1.7 / Servlet 3.0 / Maven>`｜DB：`<Oracle + JdbcTemplate>`｜base package：`<com.example.library>`
 編碼：原始碼 `<UTF-8 / CP950>`｜CSV `<UTF-8 / UTF-8 BOM / CP950>`｜換行 `<LF / CRLF>`
 `<非 UTF-8 才保留此行：讀寫檔案前先讀 skill 的 concepts/file-encoding.md；不使用 emoji>`
 
@@ -46,10 +46,10 @@ debt.md 只在審查 / 重構時讀。
 - Port：`<interface，放 <application>/port/>`｜Use case：`<class + execute(XxxInput)，建構子注入，不加 @Service>`
 - 錯誤：`<throw new XxxException()，繼承 DomainException / AppException（unchecked）>`
 - DTO：`<final class + final 欄位 + getter>`｜找不到資料：`<回傳 null（JDK 1.7）>`｜回呼：`<匿名類別>`
-- 框架限制：`<Spring 註解只在 adapter 與 config；組裝用 @Configuration + @Bean；儲存用 profile csv / sql>`
+- 框架與組裝：`<無 DI 框架：組裝類別 LendingModule；Web adapter = LoanWebAdapter + Servlet 綁定；儲存依 storage=csv|sql>`
 
 ## 常用指令（試出可用的指令就補上）
-- 編譯：`<mvn compile>`｜測試：`<mvn test>`｜啟動：`<mvn spring-boot:run -Dspring.profiles.active=csv>`｜依賴檢查：`<java -cp target/check CheckArch src/main/java com.example.library>`
+- 編譯：`<mvn compile>`｜測試：`<mvn test>`｜啟動：`<mvn jetty:run（config/application.properties：storage=csv）>`｜依賴檢查：`<java -cp target/check CheckArch src/main/java com.example.library>`
 
 ## 新功能步驟（每步通過檢查才進下一步）
 0. 拆規則表（Entity 規則 / Use case 流程 / I/O / 需要的 Port）；不清楚的**一次問完**，附預設值
@@ -59,7 +59,7 @@ debt.md 只在審查 / 重構時讀。
 4. Use case 測試：in-memory fakes；此時還沒有任何 adapter
 5. CSV adapter（`<adapters>/persistence/csv/`）+ contract test
 6. Driving adapter（controller / CLI）+ 錯誤對應
-7. 組裝：`<main>` 的 `@Bean`；儲存依 profile `<csv | sql>` 切換
+7. 組裝：在 `<main>` 的組裝類別建立；儲存依設定 `<storage=csv | sql>` 切換
 8. 用 CSV 跑通 → **交付給使用者確認**
 9. 使用者同意後才做 SQL adapter；contract test 須同時通過，domain / application 零修改
 10. 收尾記錄（見下）

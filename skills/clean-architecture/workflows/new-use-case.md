@@ -56,7 +56,7 @@ public class <VerbNoun> {
 }
 ```
 
-然後在 `<main>` 的 `@Configuration` 加一個 `@Bean`，並在 controller 呼叫它。
+然後在 `<main>` 的組裝類別建立它（Spring 專案：在 `@Configuration` 加一個 `@Bean`），並接到輸入端 adapter。
 
 ## 命名規則
 
@@ -96,7 +96,7 @@ public class LendingQueryService {
 ## 完成檢查
 
 - [ ] 一個 package、一個 use case 類別、一個公開方法
-- [ ] 沒有業務規則寫在 use case 裡；類別上沒有 `@Service`
+- [ ] 沒有業務規則寫在 use case 裡；類別上沒有框架註解
 - [ ] 有 use case 測試（成功 + 每種失敗；專案不寫測試時改為手動驗證）
-- [ ] 已在 `<main>` 用 `@Bean` 組裝
+- [ ] 已在 `<main>` 的組裝類別建立
 - [ ] 已接到某個 driving adapter（否則它不會被執行）

@@ -11,150 +11,163 @@
 
 | 必須 | 禁止 |
 |---|---|
-| 物件組裝**只發生在這裡**（`<main>`：Spring `@Configuration` 或 `main` 方法） | 其他層 `new` adapter 或使用 service locator |
-| 設定值（properties、環境變數）在這裡讀取，以建構子參數傳給 adapter | adapter / use case 自己讀 `System.getenv` 或 `@Value` |
-| 依設定切換實作（Spring profile `csv` / `sql`） | 用 `if` 散落在各處判斷要用哪種儲存 |
-| 使用 DI 容器時，只在這一層設定 | use case / entity 上加 DI 註解（`@Service`、`@Component`、`@Autowired`） |
+| 物件組裝**只發生在這裡**（`<main>`：一個專門建立物件的類別） | 其他層 `new` adapter 或使用 service locator |
+| 設定值（properties、環境變數）在這裡讀取，以建構子參數傳給 adapter | adapter / use case 自己讀 `System.getenv` 或設定檔 |
+| 依設定切換實作（`storage=csv` / `sql`），**整個專案只在這裡判斷一次** | 用 `if` 散落在各處判斷要用哪種儲存 |
+| 使用 DI 框架（Spring、Guice…）時，只在這一層設定 | use case / entity 上加 DI 註解（例如 `@Service`、`@Component`、`@Inject`） |
 | 保持精簡：只有接線與啟動 | 任何業務邏輯 |
 
 ## 放什麼 / 不放什麼
 
 | 種類 | 範例 |
 |---|---|
-| 設定讀取 | `application.properties` + `@Value`，或自己讀 `System.getenv` |
-| 連線與資源 | `DataSource` 連線池、`JavaMailSender` |
-| 框架初始化 | Spring `@Configuration`、`web.xml` / Spring Boot 啟動類別 |
-| Composition Root | `<main>`：`LendingConfig`（`@Bean` 建立 adapter → use case），controller 由 Spring 掃描 |
-| 模組組裝（by-feature） | 每個模組一個 `@Configuration`（`LendingConfig`、`CatalogConfig`） |
+| 設定讀取 | 讀 `.properties` 檔或 `System.getenv` |
+| 連線與資源 | `DataSource` 連線池、寄信用的 client |
+| 框架初始化 | `ServletContextListener`、`web.xml`；用 Spring 時的 `@Configuration` 或 XML |
+| Composition Root | `<main>`：`LendingModule`（普通 Java 類別，建立 adapter → use case → 輸入端 adapter） |
+| 模組組裝（by-feature） | 每個模組一個組裝類別（`LendingModule`、`CatalogModule`） |
 | Migration / Seed | `migrations/`、`data-seed/` |
 | ❌ 不放 | 業務規則、格式轉換、SQL 查詢邏輯（那是 repository adapter） |
 
 ## 怎麼寫（步驟）
 
-1. 讀設定（含 `storage`、`dataDir`、`csvEncoding`、`dbUrl`）
+1. 讀設定（含 `storage`、`data.dir`、`csv.encoding`、資料庫連線設定）
 2. 依設定建立資源（DB 連線只在 `storage=sql` 時建立）
 3. **由外往內建立**：driven adapters → use cases（注入 port 實作）→ driving adapters（注入 use case）
-4. 註冊路由 / CLI 指令，啟動
-5. 新增 use case 時：在這裡加一行建立它，並接到對應的 controller
+4. 交給框架或 `main` 啟動
+5. 新增 use case 時：在組裝類別加一行建立它，並接到對應的輸入端 adapter
 
 ## 範例程式碼
 
-Java，相容 JDK 1.7。以 Spring 4 的 Java Config 當 composition root：**domain 與 use case 類別上沒有任何 Spring 註解**，
-全部在這裡用 `@Bean` 建立。
+Java，相容 JDK 1.7。**預設寫法是一個普通的 Java 組裝類別，不需要任何 DI 框架。**
+CSV 或 SQL 依設定值決定；CSV 模式不會建立資料庫連線，所以沒有資料庫也能啟動。
 
 ```properties
-# FILE: src/main/resources/application.properties
-spring.profiles.active=csv        # 新功能預設 CSV；使用者確認後改成 sql
+# FILE: config/application.properties
+storage=csv                 # 新功能預設 csv；使用者確認後改成 sql
 data.dir=./data
 csv.encoding=UTF-8
 ```
 
-儲存方式用 Spring profile 切換：CSV 與 SQL 各一個設定類別，只有啟用的那個會建立 bean（不會因為沒有資料庫而啟動失敗）。
-
 ```java
-// FILE: <main>/CsvStorageConfig.java
-@Configuration
-@Profile("csv")
-public class CsvStorageConfig {
-    @Value("${data.dir:./data}")    private String dataDir;
-    @Value("${csv.encoding:UTF-8}") private String csvEncoding;
+// FILE: <main>/LendingModule.java                （Composition Root：普通 Java 類別）
+public class LendingModule {
+    private final LoanWebAdapter loanWebAdapter;
+    private final AdminCli adminCli;
 
-    @Bean
-    public CsvStore csvStore() { return new CsvStore(new File(dataDir), Charset.forName(csvEncoding)); }
+    public LendingModule(Properties config) {
+        String storage = config.getProperty("storage", "csv");
+        File dataDir = new File(config.getProperty("data.dir", "./data"));
 
-    @Bean
-    public LoanRepository loanRepository(CsvStore store) { return new CsvLoanRepository(store); }
+        // 1. 輸出端 adapter：整個專案只有這裡決定用 CSV 還是 SQL
+        MemberRepository members;
+        BookRepository books;
+        LoanRepository loans;
+        UnitOfWork uow;
+        if ("sql".equals(storage)) {
+            DataSource dataSource = DataSources.create(config);          // 只有 sql 模式才建立連線
+            members = new SqlMemberRepository(dataSource);
+            books = new SqlBookRepository(dataSource);
+            loans = new SqlLoanRepository(dataSource);
+            uow = new JdbcUnitOfWork(dataSource);
+        } else {
+            CsvStore store = new CsvStore(dataDir, Charset.forName(config.getProperty("csv.encoding", "UTF-8")));
+            members = new CsvMemberRepository(store);
+            books = new CsvBookRepository(store);
+            loans = new CsvLoanRepository(store);
+            uow = new CsvUnitOfWork(dataDir);
+        }
+        Clock clock = new SystemClock();
+        Notifier notifier = new SmtpNotifier(MailSenders.create(config));
 
-    @Bean
-    public UnitOfWork unitOfWork() { return new CsvUnitOfWork(new File(dataDir)); }
-    // memberRepository()、bookRepository() 寫法相同
-}
+        // 2. use case
+        BorrowBook borrowBook = new BorrowBook(members, books, loans, clock, notifier, uow);
+        ReturnBook returnBook = new ReturnBook(books, loans, clock, uow);
 
-// FILE: <main>/SqlStorageConfig.java         （使用者確認功能後才新增）
-@Configuration
-@Profile("sql")
-public class SqlStorageConfig {
-    @Bean
-    public LoanRepository loanRepository(DataSource dataSource) { return new SqlLoanRepository(dataSource); }
-
-    @Bean
-    public UnitOfWork unitOfWork(PlatformTransactionManager txManager) { return new SpringUnitOfWork(txManager); }
-}
-
-// FILE: <main>/LendingConfig.java          （by-feature 時每個模組一個）
-@Configuration
-public class LendingConfig {
-
-    // 1. 與儲存無關的 driven adapters
-    @Bean
-    public Clock clock() { return new SystemClock(); }
-
-    @Bean
-    public Notifier notifier(JavaMailSender mailSender) { return new SmtpNotifier(new SpringMailSender(mailSender)); }
-
-    // 2. Use cases：注入 port 實作（use case 類別本身沒有 @Service）
-    @Bean
-    public BorrowBook borrowBook(MemberRepository members, BookRepository books, LoanRepository loans,
-                                 Clock clock, Notifier notifier, UnitOfWork uow) {
-        return new BorrowBook(members, books, loans, clock, notifier, uow);
+        // 3. 輸入端 adapter（同一組 use case，可以接多個入口）
+        this.loanWebAdapter = new LoanWebAdapter(borrowBook);
+        this.adminCli = new AdminCli(returnBook);
     }
 
-    @Bean
-    public ReturnBook returnBook(BookRepository books, LoanRepository loans, Clock clock, UnitOfWork uow) {
-        return new ReturnBook(books, loans, clock, uow);
-    }
-
-    // 3. Driving adapters：LoanController 有 @RestController，由 Spring 掃描並注入上面的 use case
+    public LoanWebAdapter getLoanWebAdapter() { return loanWebAdapter; }
+    public AdminCli getAdminCli() { return adminCli; }
 }
 ```
 
-不用 Spring 時，`<main>` 就是一個普通的 `main` 方法，手動 `new` 出所有物件：
+### 在哪裡建立組裝類別
+
+組裝邏輯都在 `LendingModule`，依專案使用的框架決定由誰建立它：
+
+| 專案使用 | 在哪裡建立 `LendingModule` |
+|---|---|
+| 無框架 / CLI | `main` 方法 |
+| Servlet | `ServletContextListener.contextInitialized()`，把 adapter 放進 `ServletContext` |
+| Spring（Java Config） | `@Configuration` 類別中，用 `@Bean` 方法呼叫同樣的建構子；可用 `@Profile("csv")` / `@Profile("sql")` 取代 `if` |
+| Spring（XML） | `<bean>` 加 `<constructor-arg ref="...">`；可用 `<beans profile="csv">` 切換 |
+| Guice 或其他 DI | 在該框架的 Module 中綁定 |
 
 ```java
-// FILE: <main>/Main.java
+// FILE: <main>/Main.java                          （無框架 / CLI）
 public class Main {
-    public static void main(String[] args) {
-        String storage = System.getProperty("storage", "csv");
-        CsvStore store = new CsvStore(new File("./data"), Charset.forName("UTF-8"));
-
-        LoanRepository loans = "sql".equals(storage) ? new SqlLoanRepository(createDataSource()) : new CsvLoanRepository(store);
-        // members、books、uow 同理
-
-        BorrowBook borrowBook = new BorrowBook(members, books, loans, new SystemClock(), notifier, uow);
-        AdminCli cli = new AdminCli(borrowBook);                   // driving adapter
-        cli.run(args);
+    public static void main(String[] args) throws IOException {
+        Properties config = new Properties();
+        InputStream in = new FileInputStream("config/application.properties");
+        try {
+            config.load(in);
+        } finally {
+            in.close();
+        }
+        LendingModule lending = new LendingModule(config);
+        lending.getAdminCli().run(args);
     }
 }
+
+// FILE: <main>/AppContextListener.java            （Servlet）
+public class AppContextListener implements ServletContextListener {
+    @Override
+    public void contextInitialized(ServletContextEvent event) {
+        Properties config = loadConfig(event.getServletContext());
+        LendingModule lending = new LendingModule(config);
+        event.getServletContext().setAttribute("loanWebAdapter", lending.getLoanWebAdapter());
+    }
+
+    @Override
+    public void contextDestroyed(ServletContextEvent event) { }
+
+    // loadConfig 省略
+}
 ```
+
+使用 Spring 的專案，寫法見 [languages/java.md 的「使用 Spring 時」](../languages/java.md#使用-spring-時)。
+不論用哪一種，**use case 與 entity 類別上都不加任何框架註解**。
 
 by-feature 時，模組之間的依賴也在組裝時接上：
 
 ```java
-// FILE: <main>/LendingConfig.java    （節錄）
-@Bean
-public BorrowerLookup borrowerLookup(MembershipApi membershipApi) {   // 對方模組的公開 API
-    return new MembershipBorrowerLookup(membershipApi);              // 本模組的 integration adapter
-}
+// FILE: <main>/LibraryApplication.java    （節錄）
+MembershipModule membership = new MembershipModule(config);
+LendingModule lending = new LendingModule(config, membership.getMembershipApi());   // 傳入對方的公開 API
+// LendingModule 內部：new MembershipBorrowerLookup(membershipApi)
 ```
 
 ## 與其他層的配合
 
 ```
                ┌──────────────── <main>（Composition Root）────────────────┐
-  env / 設定 ──▶│ 1. 建立連線、client                                        │
+  設定檔 ──────▶│ 1. 建立連線、client                                        │
                │ 2. new Driven Adapters(連線)        ──┐                     │
                │ 3. new Use Cases(adapters 當作 port) ◀─┘──┐                 │
                │ 4. new Driving Adapters(use cases)  ◀────┘──┐              │
-               │ 5. 路由 / 指令 ──▶ Driving Adapters ◀───────┘ → 啟動 server │
+               │ 5. 交給框架 / main 啟動 ──▶ Driving Adapters ◀┘             │
                └──────────────────────────────────────────────────────────┘
-       執行期：請求 ──▶ 框架 ──▶ Controller ──▶ Use Case ──▶ Entity / Port ──▶ Adapter
+       執行期：請求 ──▶ 框架 ──▶ 輸入端 adapter ──▶ Use Case ──▶ Entity / Port ──▶ Adapter
 ```
 
 | 對象 | 關係 | 傳什麼 |
 |---|---|---|
-| Driven Adapters | **我建立它**，並注入連線、client、設定值 | DB 連線、`CsvStore`、SMTP client |
+| Driven Adapters | **我建立它**，並注入連線、client、設定值 | `DataSource`、`CsvStore`、寄信 client |
 | Use Cases | **我建立它**，注入 port 的實作 | adapter 實例（以 port 型別傳入） |
-| Driving Adapters | **我建立它**，注入 use case；把路由接到它 | use case 實例、server |
+| Driving Adapters | **我建立它**，注入 use case；交給框架或 `main` | use case 實例 |
 | Entities | **不接觸** | — |
 | 我依賴誰 | 所有層（這是唯一允許的地方） | — |
 
@@ -167,7 +180,8 @@ public BorrowerLookup borrowerLookup(MembershipApi membershipApi) {   // 對方�
 
 ## 自我檢查
 
-- [ ] 全專案只有這一層出現 `new XxxAdapter(...)` / `SystemClock()`
+- [ ] 全專案只有這一層出現 `new XxxAdapter(...)` / `new SystemClock()`
+- [ ] 用 CSV 還是 SQL 的判斷只出現在這裡
 - [ ] 沒有業務邏輯；設定只在這裡讀
 - [ ] 換儲存方式只需要改設定值
-- [ ] 使用 DI 容器時，內層類別上沒有容器註解
+- [ ] 使用 DI 框架時，內層類別上沒有框架註解

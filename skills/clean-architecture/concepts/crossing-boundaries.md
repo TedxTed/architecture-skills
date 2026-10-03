@@ -60,7 +60,7 @@ public final class LoanJpaMapper {
 
 都用 **unchecked**（繼承 `RuntimeException`），避免 use case 的方法簽章被 `throws` 汙染。
 
-**翻譯只在最外層的 adapter 做一次**：Spring 用 `@ControllerAdvice`，完整範例見 [03-interface-adapters.md](../layers/03-interface-adapters.md#範例程式碼)。
+**翻譯只在最外層的 adapter 做一次**：預設在 `ErrorMapping`（普通 Java 類別）裡對應，完整範例見 [03-interface-adapters.md](../layers/03-interface-adapters.md#範例程式碼)；用 Spring 的專案也可改用 `@ControllerAdvice`。
 
 | ❌ 錯誤做法 | 原因 |
 |---|---|
@@ -68,14 +68,14 @@ public final class LoanJpaMapper {
 | Repository 宣告 `throws SQLException`，讓 controller 處理 | 技術錯誤滲進內層的方法簽章 |
 | Use case 回傳 `ResponseEntity` 或狀態碼 | 應用層知道了 HTTP |
 
-Repository 遇到技術錯誤時，包成 unchecked 例外往上丟（例如 `new DataAccessFailure(e)`），由 `@ControllerAdvice` 統一回 500。
+Repository 遇到技術錯誤時，包成 unchecked 例外往上丟（例如 `new DataAccessFailure(e)`），由最外層的 adapter（框架綁定）統一記 log、回 500。
 遇到有業務意義的錯誤（例如 unique key 重複），翻譯成領域 / 應用錯誤。
 
 ---
 
 ## 3. 交易（Transaction）怎麼處理
 
-問題：借書要同時改 `Book.status` 和新增 `Loan`，必須在同一個交易。但 use case 不能 import Spring 或 JDBC。
+問題：借書要同時改 `Book.status` 和新增 `Loan`，必須在同一個交易。但 use case 不能 import JDBC 或任何框架。
 
 **解法：`UnitOfWork` port**
 
@@ -94,28 +94,42 @@ uow.run(new Runnable() {
     }
 });
 
-// FILE: <adapters>/persistence/sql/SpringUnitOfWork.java   （Spring 3 以上，Java 7 可用）
-public class SpringUnitOfWork implements UnitOfWork {
-    private final TransactionTemplate template;
+// FILE: <adapters>/persistence/sql/JdbcUnitOfWork.java   （純 JDBC，不需任何框架）
+public class JdbcUnitOfWork implements UnitOfWork {
+    // 同一個執行緒共用同一個連線，repository 透過 currentConnection() 取得
+    private static final ThreadLocal<Connection> CURRENT = new ThreadLocal<Connection>();
+    private final DataSource dataSource;
 
-    public SpringUnitOfWork(PlatformTransactionManager txManager) {
-        this.template = new TransactionTemplate(txManager);
-    }
+    public JdbcUnitOfWork(DataSource dataSource) { this.dataSource = dataSource; }
 
     @Override
-    public void run(final Runnable work) {
-        template.execute(new TransactionCallbackWithoutResult() {
-            @Override
-            protected void doInTransactionWithoutResult(TransactionStatus status) {
-                work.run();          // RuntimeException → 自動 rollback
-            }
-        });
+    public void run(Runnable work) {
+        Connection conn = null;
+        try {
+            conn = dataSource.getConnection();
+            conn.setAutoCommit(false);
+            CURRENT.set(conn);
+            work.run();
+            conn.commit();
+        } catch (SQLException e) {
+            rollbackQuietly(conn);
+            throw new DataAccessFailure(e);           // 包成 unchecked，不讓 SQLException 往內洩漏
+        } catch (RuntimeException e) {
+            rollbackQuietly(conn);
+            throw e;
+        } finally {
+            CURRENT.remove();
+            closeQuietly(conn);
+        }
     }
+
+    public static Connection currentConnection() { return CURRENT.get(); }
+
+    // rollbackQuietly、closeQuietly 省略
 }
 ```
 
-不用 Spring 時：在 `JdbcUnitOfWork` 裡 `connection.setAutoCommit(false)`，把 connection 放進 `ThreadLocal`，
-repository 從 `ThreadLocal` 取得同一個 connection；`work.run()` 成功就 `commit()`，失敗就 `rollback()`。
+使用 Spring 的專案：改用 `TransactionTemplate` 實作同一個 `UnitOfWork`，見 [languages/java.md 的「使用 Spring 時」](../languages/java.md#使用-spring-時)。
 
 **副作用（寄信）放在交易之外、成功之後**，避免「信寄了但交易 rollback」。
 若需要保證一致性，用 Outbox pattern（見 [domain-events.md](domain-events.md#可靠性outbox)）。

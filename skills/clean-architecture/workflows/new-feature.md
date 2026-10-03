@@ -218,24 +218,22 @@ STATUS.put("LOAN_NOT_FOUND", HttpStatus.NOT_FOUND);
 
 ## Step 7 — 組裝
 
-**動作**：在 `<main>`（Spring `@Configuration`）建立 use case；儲存 adapter 依 profile（`csv` / `sql`）選擇。
+**動作**：在 `<main>` 的組裝類別建立 use case，接到輸入端 adapter；儲存 adapter 依設定 `storage=csv|sql` 選擇（已在組裝類別判斷，不用改）。
 
 ```java
-// FILE: <main>/LendingConfig.java   （新增 bean）
-@Bean
-public RenewLoan renewLoan(LoanRepository loans, Clock clock) {
-    return new RenewLoan(loans, clock);
-}
+// FILE: <main>/LendingModule.java   （新增兩行）
+RenewLoan renewLoan = new RenewLoan(loans, clock);
+this.loanWebAdapter = new LoanWebAdapter(borrowBook, renewLoan);      // 輸入端 adapter 多接一個 use case
 ```
 
-✅ **檢查點**：只有 `<main>` 中出現 `new CsvXxx(...)` / `new SqlXxx(...)` / `new SystemClock()`；use case 類別上沒有 `@Service`。
+✅ **檢查點**：只有 `<main>` 中出現 `new CsvXxx(...)` / `new SqlXxx(...)` / `new SystemClock()`；use case 類別上沒有框架註解。（Spring 專案：改在 `@Configuration` 加一個 `@Bean`）
 
 ---
 
 ## Step 8 — 用 CSV 跑通端到端 ★ 交付點
 
 **動作**：
-1. 以 profile `csv` 啟動（`spring.profiles.active=csv`），實際呼叫 API / CLI，確認主要成功路徑 + 一個錯誤
+1. 以 `storage=csv` 啟動，實際呼叫 API / CLI，確認主要成功路徑 + 一個錯誤
 2. 打開 CSV 檔，確認資料寫入正確
 3. 跑過 [review/checklist.md](../review/checklist.md)
 4. 向使用者摘要，並詢問：**功能行為是否符合預期？要現在接資料庫，還是之後再接？**
@@ -249,7 +247,7 @@ public RenewLoan renewLoan(LoanRepository loans, Clock clock) {
 **動作**：依 [add-adapter.md 情境 A](add-adapter.md#情境-a替換-driven-adapter例csv--postgresql) 實作 DB adapter：
 1. 實作 `SqlXxxRepository`（含 mapper、migration）
 2. **跑同一套 contract test**，CSV 與 SQL 都要通過
-3. 切換成 profile `sql`，重跑 Step 8 的端到端驗證
+3. 設定改成 `storage=sql`，重跑 Step 8 的端到端驗證
 
 ✅ **檢查點**：`domain/`、`application/` 沒有任何變動。若需要改，代表 port 設計洩漏了技術細節，先修 port。
 

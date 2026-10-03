@@ -243,11 +243,13 @@ public List<LoanSummary> listOpenLoansByMember(MemberId memberId) {
 
 ## 組裝：用設定切換
 
-Spring：用 profile `csv` / `sql` 各一個 `@Configuration`，完整範例見 [04-frameworks-drivers.md](../layers/04-frameworks-drivers.md#範例程式碼)。
+組裝類別讀設定值 `storage`，整個專案只在那裡判斷一次，完整範例見 [04-frameworks-drivers.md](../layers/04-frameworks-drivers.md#範例程式碼)。
 
 ```properties
-spring.profiles.active=csv        # 新功能預設；使用者確認後改成 sql
+storage=csv        # 新功能預設；使用者確認後改成 sql
 ```
+
+Spring 專案可改用 profile `csv` / `sql` 各一個 `@Configuration`，見 [languages/java.md](../languages/java.md#使用-spring-時)。
 
 ## 限制（要告知使用者）
 

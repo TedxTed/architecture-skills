@@ -30,9 +30,9 @@
 
 | 種類 | 方向 | 範例 | 做什麼 |
 |---|---|---|---|
-| Controller / Handler | Driving | `LoanController`、`AdminCli` | 解析輸入 → Input DTO → 呼叫 use case → 轉回應 |
+| Web adapter / CLI | Driving | `LoanWebAdapter` + 框架綁定（`LoanServlet`）、`AdminCli` | 解析輸入 → Input DTO → 呼叫 use case → 轉回應 |
 | Presenter（選用） | Driving | `BorrowBookJsonPresenter` | Output DTO → JSON / HTML |
-| Error Mapping | Driving | `ErrorMapping`（`@ControllerAdvice`） | 領域 / 應用錯誤 → HTTP 狀態碼 |
+| Error Mapping | Driving | `ErrorMapping` | 領域 / 應用錯誤 → HTTP 狀態碼 |
 | Repository 實作 | Driven | `CsvLoanRepository`、`SqlLoanRepository` | Entity ⇄ 儲存格式 |
 | Gateway | Driven | `SmtpNotifier`、`SystemClock` | 呼叫外部服務 |
 | Mapper | 雙向 | `LoanMapper` | 純轉換函式 |
@@ -55,72 +55,89 @@
 
 ## 範例程式碼
 
-Java，相容 JDK 1.7。Web 以 Spring MVC 4（支援 Java 7）為例；Spring 註解**只出現在本層**。
+Java，相容 JDK 1.7。Web adapter 拆成兩部分，**預設不依賴任何框架**：
+
+- **轉換與錯誤對應**（`LoanWebAdapter`、`ErrorMapping`）：普通 Java 類別，換框架時不用改
+- **框架綁定**（Servlet / Spring MVC / JAX-RS…）：只有幾行，把框架的 request / response 接到上面的類別
 
 ```java
-// FILE: <adapters>/web/LoanController.java            （Driving）
-@RestController
-@RequestMapping("/api/loans")
-public class LoanController {
+// FILE: <adapters>/web/LoanWebAdapter.java            （Driving；不依賴任何框架）
+public class LoanWebAdapter {
     private final BorrowBook borrowBook;
 
-    public LoanController(BorrowBook borrowBook) { this.borrowBook = borrowBook; }
+    public LoanWebAdapter(BorrowBook borrowBook) { this.borrowBook = borrowBook; }
 
-    // POST /api/loans   body: { "memberId": "...", "bookId": "..." }
-    @RequestMapping(method = RequestMethod.POST)
-    public ResponseEntity<Map<String, Object>> borrow(@RequestBody BorrowRequest request) {
-        if (request.getMemberId() == null || request.getBookId() == null) {
-            return ErrorMapping.badRequest();                    // 傳輸格式驗證
+    // 輸入：已從 HTTP 取出的欄位；輸出：狀態碼與回應內容
+    public WebResponse borrow(String memberId, String bookId) {
+        if (memberId == null || bookId == null) {
+            return ErrorMapping.toResponse("INVALID_INPUT");          // 傳輸格式驗證
         }
-        BorrowBookOutput out = borrowBook.execute(
-                new BorrowBookInput(request.getMemberId(), request.getBookId()));
-
-        Map<String, Object> body = new HashMap<String, Object>();
-        body.put("loanId", out.getLoanId());
-        body.put("dueDate", out.getDueDate().toString());      // ISO 8601：2026-10-17
-        return new ResponseEntity<Map<String, Object>>(body, HttpStatus.CREATED);
+        try {
+            BorrowBookOutput out = borrowBook.execute(new BorrowBookInput(memberId, bookId));
+            Map<String, String> body = new LinkedHashMap<String, String>();
+            body.put("loanId", out.getLoanId());
+            body.put("dueDate", out.getDueDate().toString());       // ISO 8601：2026-10-17
+            return new WebResponse(201, body);
+        } catch (DomainException e) {
+            return ErrorMapping.toResponse(e.getCode());
+        } catch (AppException e) {
+            return ErrorMapping.toResponse(e.getCode());
+        }
     }
 }
+// WebResponse：final class，欄位為 int status 與 Map<String, String> body
 
-// FILE: <adapters>/web/ErrorMapping.java          （錯誤對應集中一處）
-@ControllerAdvice
-public class ErrorMapping {
-    private static final Map<String, HttpStatus> STATUS = new HashMap<String, HttpStatus>();
+// FILE: <adapters>/web/ErrorMapping.java              （錯誤碼 → HTTP 狀態碼，集中一處）
+public final class ErrorMapping {
+    private static final Map<String, Integer> STATUS = new HashMap<String, Integer>();
     static {
-        STATUS.put("MEMBER_NOT_FOUND", HttpStatus.NOT_FOUND);
-        STATUS.put("BOOK_NOT_FOUND", HttpStatus.NOT_FOUND);
-        STATUS.put("BOOK_NOT_AVAILABLE", HttpStatus.CONFLICT);
-        STATUS.put("HAS_OVERDUE_LOANS", HttpStatus.CONFLICT);
-        STATUS.put("MEMBER_SUSPENDED", HttpStatus.UNPROCESSABLE_ENTITY);
-        STATUS.put("LOAN_LIMIT_EXCEEDED", HttpStatus.UNPROCESSABLE_ENTITY);
+        STATUS.put("INVALID_INPUT", 400);
+        STATUS.put("MEMBER_NOT_FOUND", 404);
+        STATUS.put("BOOK_NOT_FOUND", 404);
+        STATUS.put("BOOK_NOT_AVAILABLE", 409);
+        STATUS.put("HAS_OVERDUE_LOANS", 409);
+        STATUS.put("MEMBER_SUSPENDED", 422);
+        STATUS.put("LOAN_LIMIT_EXCEEDED", 422);
     }
 
-    @ExceptionHandler(DomainException.class)
-    public ResponseEntity<Map<String, Object>> domain(DomainException e) { return toResponse(e.getCode()); }
-
-    @ExceptionHandler(AppException.class)
-    public ResponseEntity<Map<String, Object>> app(AppException e) { return toResponse(e.getCode()); }
-
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> unexpected(Exception e) {
-        LoggerFactory.getLogger(ErrorMapping.class).error("未預期的錯誤", e);   // 技術 log 在 adapter
-        return body("INTERNAL_ERROR", HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    static ResponseEntity<Map<String, Object>> badRequest() { return body("INVALID_INPUT", HttpStatus.BAD_REQUEST); }
-
-    private ResponseEntity<Map<String, Object>> toResponse(String code) {
-        HttpStatus status = STATUS.containsKey(code) ? STATUS.get(code) : HttpStatus.BAD_REQUEST;
-        return body(code, status);
-    }
-
-    private static ResponseEntity<Map<String, Object>> body(String code, HttpStatus status) {
-        Map<String, Object> map = new HashMap<String, Object>();
-        map.put("error", code);
-        return new ResponseEntity<Map<String, Object>>(map, status);
+    public static WebResponse toResponse(String code) {
+        Map<String, String> body = new LinkedHashMap<String, String>();
+        body.put("error", code);
+        Integer status = STATUS.get(code);
+        return new WebResponse(status != null ? status : 400, body);
     }
 }
 
+// FILE: <adapters>/web/LoanServlet.java               （框架綁定：Servlet）
+public class LoanServlet extends HttpServlet {
+    private LoanWebAdapter adapter;
+
+    @Override
+    public void init() {
+        adapter = (LoanWebAdapter) getServletContext().getAttribute("loanWebAdapter");   // 由組裝類別放入
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        WebResponse r;
+        try {
+            r = adapter.borrow(req.getParameter("memberId"), req.getParameter("bookId"));
+        } catch (RuntimeException e) {
+            LoggerFactory.getLogger(LoanServlet.class).error("未預期的錯誤", e);   // 技術 log 在 adapter
+            r = new WebResponse(500, Collections.singletonMap("error", "INTERNAL_ERROR"));
+        }
+        resp.setStatus(r.getStatus());
+        resp.setContentType("application/json;charset=UTF-8");
+        resp.getWriter().write(Json.write(r.getBody()));   // 用專案既有的 JSON 函式庫（Jackson、Gson…）
+    }
+}
+```
+
+使用 Spring MVC、JAX-RS 或公司自有框架時，只要換掉「框架綁定」那一個類別，寫法見 [languages/java.md 的「使用 Spring 時」](../languages/java.md#使用-spring-時)。
+已經深度使用框架的專案，也可以讓 controller 直接呼叫 use case、錯誤對應改用框架機制（例如 Spring 的 `@ControllerAdvice`）；
+只要遵守「不做業務判斷、只呼叫一個 use case」即可，選擇記入 `conventions.md`。
+
+```java
 // FILE: <adapters>/persistence/LoanMapper.java          （CSV 與 SQL 共用）
 public final class LoanMapper {
     public static final String[] COLUMNS =

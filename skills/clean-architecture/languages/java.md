@@ -1,7 +1,7 @@
 # Java 補充（JDK 1.7 / 1.8 / 新版）
 
 本 skill 的範例**本身就是 Java，且相容 JDK 1.7**（約定見 [code-conventions.md](../../../shared/code-conventions.md)）。
-本文件只補充：依 JDK 版本可以放寬的寫法、Spring 整合細節、怎麼強制依賴規則。
+本文件只補充：依 JDK 版本可以放寬的寫法、使用 Spring 時怎麼對應、怎麼強制依賴規則。
 
 ## 依 JDK 版本調整
 
@@ -30,9 +30,10 @@ ThreeTen Backport 的 Maven 依賴（Java 7）：
 
 升級到 Java 8 時，把 `import org.threeten.bp.*` 改成 `import java.time.*` 即可，程式碼不用改。
 
-## Spring 整合
+## 使用 Spring 時
 
-**原則：Spring 註解只出現在 `adapter` 與 `config`（`<main>`）。**
+本 skill 的範例預設**不依賴任何框架**（普通 Java 組裝類別、`LoanWebAdapter` + Servlet 綁定、`JdbcUnitOfWork`）。
+專案已經使用 Spring 時，照下面的方式對應；**原則：Spring 註解只出現在 `adapter` 與 `config`（`<main>`）。**
 
 | ❌ 不要 | ✅ 改為 |
 |---|---|
@@ -52,9 +53,89 @@ ThreeTen Backport 的 Maven 依賴（Java 7）：
 | Spring 5.x / Boot 2.x | 1.8 | 可用 lambda 版的 API |
 | Spring 6.x / Boot 3.x | 17 | `javax.*` 改為 `jakarta.*` |
 
-### Java Config（Spring 3.1+）
+### Java Config（Spring 3.1+）：取代組裝類別
 
-完整範例見 [04-frameworks-drivers.md](../layers/04-frameworks-drivers.md#範例程式碼)（`LendingConfig`、`CsvStorageConfig`、`SqlStorageConfig`）。
+`@Bean` 方法做的事和 `LendingModule` 的建構子一樣。儲存方式可用 profile 切換，只有啟用的設定會建立 bean，CSV 模式不需要資料庫。
+
+```java
+// FILE: <main>/CsvStorageConfig.java       （application.properties：spring.profiles.active=csv）
+@Configuration
+@Profile("csv")
+public class CsvStorageConfig {
+    @Value("${data.dir:./data}")    private String dataDir;
+    @Value("${csv.encoding:UTF-8}") private String csvEncoding;
+
+    @Bean
+    public CsvStore csvStore() { return new CsvStore(new File(dataDir), Charset.forName(csvEncoding)); }
+
+    @Bean
+    public LoanRepository loanRepository(CsvStore store) { return new CsvLoanRepository(store); }
+
+    @Bean
+    public UnitOfWork unitOfWork() { return new CsvUnitOfWork(new File(dataDir)); }
+}
+// SqlStorageConfig：@Profile("sql")，建立 SqlLoanRepository(dataSource)、SpringUnitOfWork(txManager)
+
+// FILE: <main>/LendingConfig.java
+@Configuration
+public class LendingConfig {
+    @Bean
+    public Clock clock() { return new SystemClock(); }
+
+    @Bean
+    public BorrowBook borrowBook(MemberRepository members, BookRepository books, LoanRepository loans,
+                                 Clock clock, Notifier notifier, UnitOfWork uow) {
+        return new BorrowBook(members, books, loans, clock, notifier, uow);   // use case 本身沒有 Spring 註解
+    }
+
+    @Bean
+    public LoanWebAdapter loanWebAdapter(BorrowBook borrowBook) { return new LoanWebAdapter(borrowBook); }
+}
+```
+
+### Controller：取代 Servlet 綁定
+
+```java
+// FILE: <adapters>/web/LoanController.java        （Spring MVC 4，支援 Java 7）
+@RestController
+public class LoanController {
+    private final LoanWebAdapter adapter;
+
+    @Autowired
+    public LoanController(LoanWebAdapter adapter) { this.adapter = adapter; }
+
+    @RequestMapping(value = "/api/loans", method = RequestMethod.POST)
+    public ResponseEntity<Map<String, String>> borrow(@RequestBody Map<String, String> req) {
+        WebResponse r = adapter.borrow(req.get("memberId"), req.get("bookId"));
+        return new ResponseEntity<Map<String, String>>(r.getBody(), HttpStatus.valueOf(r.getStatus()));
+    }
+}
+```
+
+專案已深度使用 Spring MVC 時，也可以讓 controller 直接呼叫 use case、用 `@ControllerAdvice` 做錯誤對應；選擇記入 `conventions.md`。
+
+### 交易：取代 JdbcUnitOfWork
+
+```java
+// FILE: <adapters>/persistence/sql/SpringUnitOfWork.java     （Spring 3 以上，Java 7 可用）
+public class SpringUnitOfWork implements UnitOfWork {
+    private final TransactionTemplate template;
+
+    public SpringUnitOfWork(PlatformTransactionManager txManager) {
+        this.template = new TransactionTemplate(txManager);
+    }
+
+    @Override
+    public void run(final Runnable work) {
+        template.execute(new TransactionCallbackWithoutResult() {
+            @Override
+            protected void doInTransactionWithoutResult(TransactionStatus status) {
+                work.run();          // RuntimeException → 自動 rollback
+            }
+        });
+    }
+}
+```
 
 ### XML 設定（舊專案常見）
 
@@ -84,10 +165,6 @@ ThreeTen Backport 的 Maven 依賴（Java 7）：
     <constructor-arg ref="unitOfWork"/>
 </bean>
 ```
-
-### 交易
-
-`UnitOfWork` 的 Spring 實作（`SpringUnitOfWork`，用 `TransactionTemplate`）見 [crossing-boundaries.md](../concepts/crossing-boundaries.md#3-交易transaction怎麼處理)。
 
 ## 強制依賴規則
 

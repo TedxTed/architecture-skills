@@ -67,7 +67,7 @@ project/
 │   │
 │   └── infrastructure/                           # 跨模組共用的技術
 │       ├── adapter/SystemClock.java              # 共用 port 的實作
-│       └── LibraryApplication.java               # 啟動類別（Spring Boot）或 web.xml 設定
+│       └── LibraryApplication.java               # 啟動：建立各模組的組裝類別並接起來
 │
 └── src/test/java/com/example/library/lending/ ... # 鏡像 main 結構
 ```

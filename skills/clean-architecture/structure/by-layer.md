@@ -33,8 +33,9 @@ project/
 │   │
 │   ├── adapter/                             # ── Interface Adapters 層 ──
 │   │   ├── web/                                       # driving
-│   │   │   ├── LoanController.java
-│   │   │   ├── ErrorMapping.java                      # @ControllerAdvice
+│   │   │   ├── LoanWebAdapter.java                # 轉換 + 呼叫 use case（不依賴框架）
+│   │   │   ├── LoanServlet.java                   # 框架綁定（或 Spring 的 LoanController）
+│   │   │   ├── ErrorMapping.java                      # 錯誤碼 → HTTP 狀態碼
 │   │   │   └── BorrowRequest.java, BorrowResponse.java
 │   │   ├── cli/                                       # driving
 │   │   │   └── AdminCli.java
@@ -47,14 +48,13 @@ project/
 │   │   │   └── sql/                                   # ② 使用者確認後才做
 │   │   │       ├── SqlLoanRepository.java
 │   │   │       ├── SqlLendingQueries.java
-│   │   │       └── SpringUnitOfWork.java
+│   │   │       └── JdbcUnitOfWork.java
 │   │   ├── notification/SmtpNotifier.java             # driven
 │   │   └── time/SystemClock.java
 │   │
 │   └── config/                              # ── Frameworks & Drivers 層：Composition root ──
-│       ├── LendingConfig.java                         # @Bean：use case、與儲存無關的 adapter
-│       ├── CsvStorageConfig.java                      # @Profile("csv")
-│       └── SqlStorageConfig.java                      # @Profile("sql")
+│       ├── LendingModule.java                         # 組裝類別：依 storage 設定建立 CSV 或 SQL 版
+│       └── Main.java / AppContextListener.java        # 啟動（Spring 專案改為 @Configuration）
 │
 ├── src/main/resources/
 │   ├── application.properties
@@ -73,7 +73,7 @@ project/
 |---|---|
 | `domain` | `domain`、JDK（`java.util`、`java.time` / `org.threeten.bp`） |
 | `application` | `domain`、`application`、JDK |
-| `adapter` | `domain`、`application`、外部函式庫（Spring MVC、JDBC、Commons CSV…） |
+| `adapter` | `domain`、`application`、外部函式庫（Servlet、JDBC、Commons CSV…） |
 | `config` | 全部 |
 | `test.fakes` | `domain`、`application` |
 
@@ -87,7 +87,7 @@ project/
 + application/usecase/renewloan/                  新增：RenewLoan、RenewLoanInput、RenewLoanOutput
 ~ adapter/web/LoanController.java                 修改：加 renew()
 ~ adapter/web/ErrorMapping.java                   修改：加錯誤對應
-~ config/LendingConfig.java                       修改：@Bean RenewLoan
+~ config/LendingModule.java                       修改：建立 RenewLoan
 ~ test/.../domain/LoanTest.java                   修改
 + test/.../application/RenewLoanTest.java         新增
 ```

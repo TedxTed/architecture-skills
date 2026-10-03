@@ -77,7 +77,7 @@ modules/                            features/
 <adapters>/
   web/                    controller + 錯誤對應
   persistence/            repository 實作 + mapper
-<main>                    一個 @Configuration
+<main>                    一個組裝類別
 ```
 
 可省略：輸入 port 介面、Presenter、獨立 mapper 類別。

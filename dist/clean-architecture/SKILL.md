@@ -66,7 +66,7 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構與
 
 ```
 ┌──────────────────────────────────────────────┐
-│ Frameworks & Drivers：Spring 設定、資料庫連線   │
+│ Frameworks & Drivers：組裝類別、資料庫連線     │
 │  ┌────────────────────────────────────────┐  │
 │  │ Interface Adapters：Controller、Repository │  │
 │  │  ┌──────────────────────────────────┐  │  │
@@ -95,7 +95,7 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構與
 | Entities | `domain` | Entity、Value、領域錯誤 | 沒有電腦，櫃台人員也照做的規則 |
 | Use Cases | `application` | Use case、Port、DTO | 系統執行一個操作的步驟 |
 | Interface Adapters | `adapter` | Controller、Repository 實作 | 外部格式與內部格式的轉換 |
-| Frameworks & Drivers | `config`、`infrastructure` | Spring 設定、啟動程式 | 換掉它，業務不應該知道 |
+| Frameworks & Drivers | `config`、`infrastructure` | 組裝類別、啟動程式、框架設定 | 換掉它，業務不應該知道 |
 
 ### 五條硬規則
 
@@ -105,7 +105,7 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構與
 2. **domain 與 application 不 import 框架**：Spring、JPA、Servlet、JDBC、Jackson 都不行。
 3. **規則放 Entity，流程放 Use Case，轉換放 Adapter。**
 4. **需要外部能力時，內層定義 Port，外層實作 Adapter。** 時間、ID、亂數也算外部能力。
-5. **物件只在 Composition Root 組裝。** Composition Root 就是 Spring 的 `@Configuration` 或 `main` 方法。use case 不加 `@Service`。
+5. **物件只在 Composition Root 組裝。** Composition Root 是一個專門建立物件的類別（用 Spring 時就是 `@Configuration`）。use case 與 entity 不加任何框架註解。
 
 ### 程式碼該放哪
 
@@ -271,8 +271,8 @@ public class Member {
 **不要做**
 
 - 寫 `if (openLoans.size() >= 3)` 這種業務判斷（這是 entity 的事）
-- import adapter、Spring、JDBC
-- 加 `@Service`、`@Transactional`
+- import adapter、Web 框架、JDBC
+- 加框架註解（例如 Spring 的 `@Service`、`@Transactional`）
 - 回傳 entity 或 `ResponseEntity`
 
 **範例**
@@ -383,59 +383,106 @@ Adapter 分成兩個方向：
 
 **範例**
 
+Web adapter 拆成兩部分：
+
+- **轉換與錯誤對應**：普通 Java 類別，不依賴任何框架，換框架時不用改
+- **框架綁定**：只有幾行，把框架的 request / response 接到上面那個類別
+
 ```java
-// FILE: <adapters>/web/LoanController.java      （Spring 4 MVC，支援 Java 7）
-@RestController
-@RequestMapping("/api/loans")
-public class LoanController {
+// FILE: <adapters>/web/LoanWebAdapter.java       （不依賴任何框架）
+public class LoanWebAdapter {
     private final BorrowBook borrowBook;
 
-    @Autowired      // Spring 4.3 起，只有一個建構子時可以省略
-    public LoanController(BorrowBook borrowBook) {
+    public LoanWebAdapter(BorrowBook borrowBook) {
         this.borrowBook = borrowBook;
     }
 
-    @RequestMapping(method = RequestMethod.POST)
-    public ResponseEntity<BorrowResponse> borrow(@Valid @RequestBody BorrowRequest req) {
-        BorrowBookOutput out = borrowBook.execute(
-                new BorrowBookInput(req.getMemberId(), req.getBookId()));
-        BorrowResponse body = new BorrowResponse(out.getLoanId(), out.getDueDate().toString());
-        return new ResponseEntity<BorrowResponse>(body, HttpStatus.CREATED);
+    // 輸入：已從 HTTP 取出的欄位；輸出：狀態碼與回應內容
+    public WebResponse borrow(String memberId, String bookId) {
+        if (memberId == null || bookId == null) {
+            return ErrorMapping.toResponse("INVALID_INPUT");          // 傳輸格式驗證
+        }
+        try {
+            BorrowBookOutput out = borrowBook.execute(new BorrowBookInput(memberId, bookId));
+            Map<String, String> body = new LinkedHashMap<String, String>();
+            body.put("loanId", out.getLoanId());
+            body.put("dueDate", out.getDueDate().toString());       // ISO 格式：2026-10-17
+            return new WebResponse(201, body);
+        } catch (DomainException e) {
+            return ErrorMapping.toResponse(e.getCode());
+        } catch (AppException e) {
+            return ErrorMapping.toResponse(e.getCode());
+        }
+    }
+}
+// WebResponse：final class，欄位為 int status 與 Map<String, String> body
+```
+
+```java
+// FILE: <adapters>/web/ErrorMapping.java          （錯誤碼 → HTTP 狀態碼，集中在這裡）
+public final class ErrorMapping {
+    private static final Map<String, Integer> STATUS = new HashMap<String, Integer>();
+    static {
+        STATUS.put("INVALID_INPUT", 400);
+        STATUS.put("MEMBER_NOT_FOUND", 404);
+        STATUS.put("BOOK_NOT_AVAILABLE", 409);
+        STATUS.put("LOAN_LIMIT_EXCEEDED", 422);
+    }
+
+    public static WebResponse toResponse(String code) {
+        Map<String, String> body = new LinkedHashMap<String, String>();
+        body.put("error", code);
+        Integer status = STATUS.get(code);
+        return new WebResponse(status != null ? status : 400, body);
+    }
+}
+```
+
+框架綁定依專案使用的框架選一種：
+
+```java
+// FILE: <adapters>/web/LoanServlet.java           （Servlet）
+public class LoanServlet extends HttpServlet {
+    private LoanWebAdapter adapter;
+
+    @Override
+    public void init() {
+        adapter = (LoanWebAdapter) getServletContext().getAttribute("loanWebAdapter");   // 由組裝類別放入
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        WebResponse r = adapter.borrow(req.getParameter("memberId"), req.getParameter("bookId"));
+        resp.setStatus(r.getStatus());
+        resp.setContentType("application/json;charset=UTF-8");
+        resp.getWriter().write(Json.write(r.getBody()));   // 用專案既有的 JSON 函式庫（Jackson、Gson…）
     }
 }
 ```
 
 ```java
-// FILE: <adapters>/web/ErrorMapping.java        （錯誤對應集中在這裡）
-@ControllerAdvice
-public class ErrorMapping {
-    private static final Map<String, HttpStatus> STATUS = new HashMap<String, HttpStatus>();
-    static {
-        STATUS.put("MEMBER_NOT_FOUND", HttpStatus.NOT_FOUND);
-        STATUS.put("BOOK_NOT_AVAILABLE", HttpStatus.CONFLICT);
-        STATUS.put("LOAN_LIMIT_EXCEEDED", HttpStatus.UNPROCESSABLE_ENTITY);
+// FILE: <adapters>/web/LoanController.java        （Spring MVC 4，支援 Java 7）
+@RestController
+public class LoanController {
+    private final LoanWebAdapter adapter;
+
+    @Autowired
+    public LoanController(LoanWebAdapter adapter) {
+        this.adapter = adapter;
     }
 
-    @ExceptionHandler(DomainException.class)
-    public ResponseEntity<Map<String, String>> domain(DomainException e) {
-        return toResponse(e.getCode());
-    }
-
-    @ExceptionHandler(AppException.class)
-    public ResponseEntity<Map<String, String>> app(AppException e) {
-        return toResponse(e.getCode());
-    }
-
-    // 其他 Exception：記 log，回 500 INTERNAL_ERROR（省略）
-
-    private ResponseEntity<Map<String, String>> toResponse(String code) {
-        Map<String, String> body = new HashMap<String, String>();
-        body.put("error", code);
-        HttpStatus status = STATUS.containsKey(code) ? STATUS.get(code) : HttpStatus.BAD_REQUEST;
-        return new ResponseEntity<Map<String, String>>(body, status);
+    @RequestMapping(value = "/api/loans", method = RequestMethod.POST)
+    public ResponseEntity<Map<String, String>> borrow(@RequestBody Map<String, String> req) {
+        WebResponse r = adapter.borrow(req.get("memberId"), req.get("bookId"));
+        return new ResponseEntity<Map<String, String>>(r.getBody(), HttpStatus.valueOf(r.getStatus()));
     }
 }
 ```
+
+JAX-RS、Struts 或公司自有框架的寫法相同：框架綁定只負責取出參數、呼叫 `LoanWebAdapter`、寫回結果。
+
+> 已經深度使用某個框架的專案，也可以讓 controller 直接呼叫 use case，錯誤對應改用框架的機制（例如 Spring 的 `@ControllerAdvice`）。
+> 只要遵守「controller 不做業務判斷、只呼叫一個 use case」即可。選擇記入 `conventions.md`。
 
 **檢查問題**
 
@@ -445,62 +492,79 @@ public class ErrorMapping {
 
 ### 第 4 層：Frameworks & Drivers（`config`）
 
-**職責**：把所有物件建立起來、接在一起，然後啟動。這裡是**唯一知道所有具體實作**的地方。
+**職責**：把所有物件建立起來、接在一起，然後啟動。這裡是**唯一知道所有具體實作**的地方，稱為 **Composition Root**。
 
 **做法**
 
 1. 讀設定
 2. 建立輸出端 adapter（repository、notifier）
 3. 建立 use case，把 adapter 當成 port 注入
-4. Controller 由 Spring 掃描後自動注入 use case
+4. 建立輸入端 adapter，把 use case 注入
+5. 交給框架或 `main` 啟動
 
-儲存方式用 Spring profile 切換（Spring 3.1 起支援）。這樣在 CSV 模式下，沒有設定資料庫也能啟動。
-
-```java
-// FILE: <main>/CsvStorageConfig.java       （application.properties：spring.profiles.active=csv）
-@Configuration
-@Profile("csv")
-public class CsvStorageConfig {
-    @Value("${data.dir:./data}")
-    private String dataDir;
-
-    @Bean
-    public CsvStore csvStore() {
-        return new CsvStore(new File(dataDir), Charset.forName("UTF-8"));
-    }
-
-    @Bean
-    public LoanRepository loanRepository(CsvStore store) {
-        return new CsvLoanRepository(store);
-    }
-}
-// SqlStorageConfig 寫法相同，加上 @Profile("sql")，改建立 SqlLoanRepository
-```
+**預設寫法：一個普通的 Java 組裝類別。** 不需要任何 DI 框架。
+CSV 或 SQL 依設定值決定，**整個專案只在這裡判斷一次**；CSV 模式不會建立資料庫連線，所以沒有資料庫也能啟動。
 
 ```java
-// FILE: <main>/LendingConfig.java
-@Configuration
-public class LendingConfig {
+// FILE: <main>/LendingModule.java                （Composition Root：普通 Java 類別）
+public class LendingModule {
+    private final LoanWebAdapter loanWebAdapter;
 
-    @Bean
-    public Clock clock() {
-        return new SystemClock();
+    public LendingModule(Properties config) {
+        String storage = config.getProperty("storage", "csv");          // 新功能預設 CSV
+        File dataDir = new File(config.getProperty("data.dir", "./data"));
+
+        // 1. 輸出端 adapter：只有這裡決定用 CSV 還是 SQL
+        MemberRepository members;
+        BookRepository books;
+        LoanRepository loans;
+        UnitOfWork uow;
+        if ("sql".equals(storage)) {
+            DataSource dataSource = DataSources.create(config);          // 只有 sql 模式才建立連線
+            members = new SqlMemberRepository(dataSource);
+            books = new SqlBookRepository(dataSource);
+            loans = new SqlLoanRepository(dataSource);
+            uow = new JdbcUnitOfWork(dataSource);
+        } else {
+            CsvStore store = new CsvStore(dataDir, Charset.forName(config.getProperty("csv.encoding", "UTF-8")));
+            members = new CsvMemberRepository(store);
+            books = new CsvBookRepository(store);
+            loans = new CsvLoanRepository(store);
+            uow = new CsvUnitOfWork(dataDir);
+        }
+        Clock clock = new SystemClock();
+        Notifier notifier = new SmtpNotifier(MailSenders.create(config));
+
+        // 2. use case
+        BorrowBook borrowBook = new BorrowBook(members, books, loans, clock, notifier, uow);
+
+        // 3. 輸入端 adapter
+        this.loanWebAdapter = new LoanWebAdapter(borrowBook);
     }
 
-    @Bean
-    public BorrowBook borrowBook(MemberRepository members, BookRepository books, LoanRepository loans,
-                                 Clock clock, Notifier notifier, UnitOfWork uow) {
-        return new BorrowBook(members, books, loans, clock, notifier, uow);   // use case 本身沒有 Spring 註解
+    public LoanWebAdapter getLoanWebAdapter() {
+        return loanWebAdapter;
     }
 }
 ```
 
-還在用 XML 設定的舊專案：use case 是一般 Java 類別，用 `<bean>` 加 `<constructor-arg ref="...">` 組裝，用 `<beans profile="csv">` 切換儲存方式。
+**啟動方式依框架而定**，組裝邏輯都在 `LendingModule`：
+
+| 專案使用 | 在哪裡建立 `LendingModule` |
+|---|---|
+| 無框架 / CLI | `main` 方法 |
+| Servlet | `ServletContextListener.contextInitialized()`，把 adapter 放進 `ServletContext` |
+| Spring（Java Config） | `@Configuration` 類別中，用 `@Bean` 方法呼叫同樣的建構子；可用 `@Profile("csv")` / `@Profile("sql")` 取代 `if` |
+| Spring（XML） | `<bean>` 加 `<constructor-arg ref="...">`；可用 `<beans profile="csv">` 切換 |
+| Guice 或其他 DI | 在該框架的 Module 中綁定 |
+
+不論用哪一種，**use case 與 entity 類別上都不加任何框架註解**。
 
 **檢查問題**
 
 - 全專案是不是只有這一層在 `new` adapter？
-- use case 類別上有沒有 Spring 註解？
+- 用 CSV 還是 SQL 的判斷，是不是只出現在這裡？
+- use case 類別上有沒有框架註解？
 
 ---
 
@@ -533,14 +597,56 @@ DTO 是只裝資料、沒有業務方法的物件。判斷原則：**誰的方�
 | 應用錯誤 | `application` | `AppException("MEMBER_NOT_FOUND")` |
 | 技術錯誤 | 不定義，由 adapter 包裝 | `SQLException` |
 
-全部用 unchecked 例外，只在最外層（`@ControllerAdvice`）轉成 HTTP 狀態碼一次。
+全部用 unchecked 例外，只在最外層的 adapter（上面的 `ErrorMapping`）轉成 HTTP 狀態碼一次。
 
 ### 交易
 
-- Use case 透過 `UnitOfWork` port 開交易
-- Spring 的實作用 `TransactionTemplate`
-- `@Transactional` 只能放在 adapter，不能放在 use case
-- 寄信等副作用放在交易成功之後；需要保證一定送達時用 Outbox（交易內寫入 outbox 表，另一個程序負責發送）
+Use case 透過 `UnitOfWork` port 開交易，不知道底下是 JDBC 還是哪個框架。預設用純 JDBC 實作：
+
+```java
+// FILE: <adapters>/persistence/sql/JdbcUnitOfWork.java
+public class JdbcUnitOfWork implements UnitOfWork {
+    // 同一個執行緒共用同一個連線，repository 透過 currentConnection() 取得
+    private static final ThreadLocal<Connection> CURRENT = new ThreadLocal<Connection>();
+    private final DataSource dataSource;
+
+    public JdbcUnitOfWork(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
+    @Override
+    public void run(Runnable work) {
+        Connection conn = null;
+        try {
+            conn = dataSource.getConnection();
+            conn.setAutoCommit(false);
+            CURRENT.set(conn);
+            work.run();
+            conn.commit();
+        } catch (SQLException e) {
+            rollbackQuietly(conn);
+            throw new DataAccessFailure(e);           // 包成 unchecked，不讓 SQLException 往內洩漏
+        } catch (RuntimeException e) {
+            rollbackQuietly(conn);
+            throw e;
+        } finally {
+            CURRENT.remove();
+            closeQuietly(conn);
+        }
+    }
+
+    public static Connection currentConnection() {
+        return CURRENT.get();
+    }
+
+    // rollbackQuietly、closeQuietly 省略
+}
+```
+
+其他做法：
+
+- **Spring 專案**：用 `TransactionTemplate` 實作 `UnitOfWork`。`@Transactional` 只能放在 adapter，不能放在 use case。
+- **副作用**：寄信等副作用放在交易成功之後。需要保證一定送達時用 Outbox：交易內寫入 outbox 表，另一個程序負責發送。
 
 **競態條件**：use case 在交易外先讀資料再檢查，兩個人同時借同一本書，可能都通過檢查。解法都在 adapter 裡：
 
@@ -601,7 +707,7 @@ by-feature 的規則：
 
 只讀這些：
 
-- `pom.xml` 或 `build.gradle`：JDK 版本、Spring 版本、原始碼編碼
+- `pom.xml` 或 `build.gradle`：JDK 版本、Web 框架與版本（Servlet、Spring、JAX-RS…）、原始碼編碼
 - `src/main/java` 往下到 base package 再兩層的資料夾名稱
 - 既有的 `CLAUDE.md`、`AGENTS.md`、`.editorconfig`
 
@@ -615,7 +721,7 @@ by-feature 的規則：
 開始之前想確認幾件事。答案會記在 docs/architecture/，之後不會再問。
 可以回「全部預設」，或只回要改的題號（例如「3A、11B」）。
 
-【已偵測，請確認】Java 1.7 / Spring 4.3 MVC / Maven；base package：com.example.library；原始碼編碼：MS950
+【已偵測，請確認】Java 1.7 / Servlet 3.0 / Maven；base package：com.example.library；原始碼編碼：MS950
 
 1. 專案狀態？      A. 新專案（預設）  B. 既有且已分層  C. 既有未分層，需要重構
 2. 專案形態？      A. 純後端 API（預設）  B. 全端  C. 純前端  D. CLI / 批次 / MQ
@@ -630,6 +736,16 @@ by-feature 的規則：
 11. 測試？         A. 寫自動化測試（預設）  B. 不寫，改用手動驗證
 12. 其他慣例，或「不要這樣做」的事？
 ```
+
+偵測不到 Web 框架或 DI 方式時，加問一題（取代不相關的題目，維持 12 題以內）：
+
+```
+Web 框架與組裝方式？
+A. 無框架 / Servlet，用普通 Java 組裝類別（預設）
+B. Spring（Java Config）  C. Spring（XML）  D. JAX-RS / 其他：___
+```
+
+答案決定 controller 的框架綁定寫法，以及組裝類別在哪裡被建立（見第 4 層的表格）。
 
 **步驟 3：建立專案記憶**
 
@@ -655,7 +771,7 @@ by-feature 的規則：
 | 4 | 用 in-memory 假實作測 use case | 此時還沒有任何 adapter |
 | 5 | 寫 CSV 版的 repository | 通過 contract test |
 | 6 | 寫 controller 與錯誤對應 | controller 只呼叫一個 use case |
-| 7 | 在 `@Configuration` 組裝 | 只有 config 在 `new` adapter |
+| 7 | 在組裝類別建立物件 | 只有 config 在 `new` adapter |
 | 8 | **用 CSV 跑通，交給使用者確認** | 成功路徑與每種錯誤都打過 |
 | 9 | 使用者同意後才寫 SQL 版 repository | domain 與 application 一行都不用改 |
 | 10 | 收尾記錄（工作流程 F） | — |
@@ -687,7 +803,7 @@ by-feature 的規則：
 1. port 不動
 2. 新增 `SqlLoanRepository`（用 `JdbcTemplate`；JPA 或 MyBatis 的類別只放在 adapter）
 3. 跑同一套 contract test
-4. 新增 `@Profile("sql")` 的設定，切換 profile
+4. 在組裝類別的 `sql` 分支建立 SQL 版 repository，把設定改成 `storage=sql`
 
 CSV 版建議保留，給本機開發用。
 
@@ -706,9 +822,9 @@ CSV 版建議保留，給本機開發用。
 1. **鎖定行為**：先寫特徵測試，或用 curl 記下每個情境的請求與回應
 2. **標記**：在原始碼註記每一行屬於哪一層（這一步不改程式）
 3. **抽 Domain**：把業務規則搬進 entity 方法（風險最低、收益最高）
-4. **抽 Port 與 Adapter**：SQL 搬進 repository；`new Date()` 換成 Clock；`@Transactional` 換成 UnitOfWork
+4. **抽 Port 與 Adapter**：SQL 搬進 repository；`new Date()` 換成 Clock；交易控制（`@Transactional`、手動 commit）換成 UnitOfWork
 5. **抽 Use Case**：controller 只剩「解析 → 呼叫 → 轉回應」；寄信移到交易後
-6. **搬到 Composition Root**：改用 `@Configuration` 組裝，加上依賴方向檢查
+6. **搬到 Composition Root**：把散落各處的 `new`、`@Autowired` 欄位注入改成在組裝類別建立，加上依賴方向檢查
 
 安全網：
 
@@ -872,7 +988,7 @@ public class Loan { ... }
 @Transactional
 public class BorrowBook { @Autowired private LoanRepository loans; }
 
-// ✅ 好：JPA 類別與 domain entity 分開；use case 用建構子注入，在 @Configuration 建立
+// ✅ 好：JPA 類別與 domain entity 分開；use case 用建構子注入，在組裝類別建立
 public class BorrowBook {
     public BorrowBook(LoanRepository loans, ...) { ... }
 }

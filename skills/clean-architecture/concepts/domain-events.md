@@ -166,13 +166,10 @@ public class InProcessEventBus implements EventPublisher {
     }
 }
 
-// FILE: <main>/LendingConfig.java    （節錄）
-@Bean
-public InProcessEventBus eventBus(MemberRepository members, BookRepository books, Notifier notifier) {
-    InProcessEventBus bus = new InProcessEventBus();
-    bus.subscribe(BookBorrowed.class, new SendBorrowNotification(members, books, notifier));
-    return bus;
-}
+// FILE: <main>/LendingModule.java    （節錄）
+InProcessEventBus eventBus = new InProcessEventBus();
+eventBus.subscribe(BookBorrowed.class, new SendBorrowNotification(members, books, notifier));
+BorrowBook borrowBook = new BorrowBook(members, books, loans, clock, eventBus, uow);
 ```
 
 > Spring 專案也可以用 `ApplicationEventPublisher` 實作 `EventPublisher` port；但 `@EventListener` 只能加在 adapter 的類別上，

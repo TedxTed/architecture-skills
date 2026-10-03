@@ -16,54 +16,63 @@
 2. **新增實作**：`<adapters>/persistence/sql/SqlLoanRepository.java`（含建表 SQL / migration）
 3. **新增 mapper**：Entity ⇄ DB row（欄位名稱可沿用 CSV 版）
 4. **跑同一套 repository contract test**（見下方）
-5. **新增 `SqlStorageConfig`（`@Profile("sql")`），切換 profile**：`spring.profiles.active=sql`
+5. **在組裝類別的 `sql` 分支建立 SQL 版 repository，把設定改成 `storage=sql`**（Spring 專案：新增 `@Profile("sql")` 的設定類別）
 6. **CSV adapter 建議保留**，作為本機開發與展示用；若使用者決定刪除，記錄到 `conventions.md`
 
 ```java
-// FILE: <adapters>/persistence/sql/SqlLoanRepository.java    （Spring JdbcTemplate，Spring 3 以上、Java 7 可用）
+// FILE: <adapters>/persistence/sql/SqlLoanRepository.java    （純 JDBC，搭配 JdbcUnitOfWork）
 public class SqlLoanRepository implements LoanRepository {
-    private static final RowMapper<Loan> ROW_MAPPER = new RowMapper<Loan>() {
-        @Override
-        public Loan mapRow(ResultSet rs, int rowNum) throws SQLException {
-            Timestamp returnedAt = rs.getTimestamp("returned_at");
-            return Loan.reconstitute(
-                    new LoanId(rs.getString("id")), new MemberId(rs.getString("member_id")),
-                    new BookId(rs.getString("book_id")),
-                    toLocalDateTime(rs.getTimestamp("borrowed_at")), toLocalDate(rs.getDate("due_date")),
-                    returnedAt == null ? null : toLocalDateTime(returnedAt),
-                    rs.getInt("renew_count"));
-        }
-    };
+    private final DataSource dataSource;
 
-    private final JdbcTemplate jdbc;
-
-    public SqlLoanRepository(DataSource dataSource) { this.jdbc = new JdbcTemplate(dataSource); }
+    public SqlLoanRepository(DataSource dataSource) { this.dataSource = dataSource; }
 
     @Override
     public List<Loan> findOpenByMember(MemberId memberId) {
-        return jdbc.query("SELECT * FROM loans WHERE member_id = ? AND returned_at IS NULL",
-                ROW_MAPPER, memberId.getValue());
+        String sql = "SELECT * FROM loans WHERE member_id = ? AND returned_at IS NULL";
+        Connection conn = connection();
+        try {
+            PreparedStatement ps = conn.prepareStatement(sql);
+            try {
+                ps.setString(1, memberId.getValue());
+                ResultSet rs = ps.executeQuery();
+                List<Loan> result = new ArrayList<Loan>();
+                while (rs.next()) {
+                    result.add(toEntity(rs));
+                }
+                return result;
+            } finally {
+                ps.close();
+            }
+        } catch (SQLException e) {
+            throw new DataAccessFailure(e);          // 不讓 SQLException 往內洩漏
+        } finally {
+            releaseIfNotInTransaction(conn);
+        }
     }
 
     @Override
     public void save(Loan loan) {
-        int updated = jdbc.update(
-                "UPDATE loans SET due_date = ?, returned_at = ?, renew_count = ? WHERE id = ?",
-                toSqlDate(loan.getDueDate()), toTimestamp(loan.getReturnedAt()), loan.getRenewCount(),
-                loan.getId().getValue());
-        if (updated == 0) {
-            jdbc.update("INSERT INTO loans (id, member_id, book_id, borrowed_at, due_date, returned_at, renew_count) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    loan.getId().getValue(), loan.getMemberId().getValue(), loan.getBookId().getValue(),
-                    toTimestamp(loan.getBorrowedAt()), toSqlDate(loan.getDueDate()),
-                    toTimestamp(loan.getReturnedAt()), loan.getRenewCount());
+        // 先 UPDATE，影響 0 列再 INSERT（寫法同上，略）
+    }
+
+    // 交易中用 JdbcUnitOfWork 的連線；不在交易中就自己向 DataSource 取一條
+    private Connection connection() {
+        Connection current = JdbcUnitOfWork.currentConnection();
+        if (current != null) {
+            return current;
+        }
+        try {
+            return dataSource.getConnection();
+        } catch (SQLException e) {
+            throw new DataAccessFailure(e);
         }
     }
 
-    // findById、nextId、日期轉換的 private static 方法（toLocalDate、toTimestamp…）略
+    // toEntity(ResultSet)：用 Loan.reconstitute(...) 還原；releaseIfNotInTransaction、findById、nextId 略
 }
 ```
 
+> 使用 Spring 的專案可以改用 `JdbcTemplate`（搭配 `SpringUnitOfWork`）減少樣板程式碼。
 > 使用 JPA / MyBatis 時做法相同：`@Entity` 類別或 Mapper XML 只出現在 `adapter/persistence/`，以 mapper 轉成 domain entity。
 
 ### Repository Contract Test（強烈建議）
@@ -142,12 +151,9 @@ public class CompositeNotifier implements Notifier {
     }
 }
 
-// FILE: <main>/LendingConfig.java   （節錄）
-@Bean
-public Notifier notifier(JavaMailSender mailSender, LineClient lineClient) {
-    return new CompositeNotifier(Arrays.<Notifier>asList(
-            new SmtpNotifier(new SpringMailSender(mailSender)), new LineNotifier(lineClient)));
-}
+// FILE: <main>/LendingModule.java   （節錄）
+Notifier notifier = new CompositeNotifier(Arrays.<Notifier>asList(
+        new SmtpNotifier(MailSenders.create(config)), new LineNotifier(LineClients.create(config))));
 ```
 
 **新管道需要新的收件資料時**（例如 LINE 需要 `lineUserId`）：擴充 `Recipient`，由 use case 從 entity 填入。

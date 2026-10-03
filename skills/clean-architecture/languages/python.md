@@ -17,7 +17,7 @@
 | 找不到回傳 `null` | `None` |
 | 匿名類別 `new Runnable() { ... }` | 內部函式或 `lambda` |
 | `LocalDate` / `LocalDateTime` | `datetime.date` / `datetime.datetime` |
-| Spring `@Configuration` + `@Bean` | `main.py` 手動組裝 |
+| 組裝類別（`LendingModule`） | `main.py` 手動組裝 |
 
 > **Pydantic 放哪？** Pydantic model 屬於 adapter 層（HTTP schema）。domain / application 用標準庫 `dataclass`，避免依賴第三方套件。
 
