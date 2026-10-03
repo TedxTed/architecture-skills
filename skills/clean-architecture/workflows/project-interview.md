@@ -92,7 +92,12 @@
 
 ## Step 3 — 寫入專案記憶
 
-依 [templates/project/card.md](../templates/project/card.md) 建立 `docs/architecture/`。
+依 [templates/project/](../templates/project/card.md) 建立 `docs/architecture/` 的五個檔案：
+card、conventions、map、decisions、debt。
+
+- **常用指令**：Step 1 讀到的 `package.json` scripts / Makefile 等，直接填進 card 的「常用指令」
+- **map.md**：只依資料夾名稱列出模組標題，內容留空；**不要為了填 map 掃描原始碼**，之後每次任務收尾時逐步補上
+- **decisions.md**：只放標頭
 
 ### 3a. 路徑表：依題 3、4 的答案填入 card.md
 

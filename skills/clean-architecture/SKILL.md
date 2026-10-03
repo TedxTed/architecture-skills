@@ -7,13 +7,15 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構或
 
 ## 讀取策略（必讀）
 
-1. **專案有 `docs/architecture/card.md`** → 你不該在讀這頁。改讀 card.md + conventions.md，照卡上的步驟做。
+1. **專案有 `docs/architecture/card.md`** → 你不該在讀這頁。改讀 card.md + conventions.md，照卡上的步驟做；
+   改程式前讀 map.md 取代掃描原始碼；做判斷前先搜尋 decisions.md。
 2. **專案沒有** → 先做首次設定：讀 [workflows/project-interview.md](workflows/project-interview.md)。**先問使用者，不要掃描原始碼。**
 3. **卡上沒寫到才查 skill 文件**，一次只查一份。
 4. **大檔先看標題再讀章節**：先搜尋 `^## ` 取得章節列表，只讀需要的那段（工具支援指定行數範圍時）。
 5. `languages/*.md` **只在首次設定讀一次**，把要點寫進 card，之後不再讀。
 6. **不讀**：README.md、其他架構的 skill、未選用的結構文件、同一對話中已讀過的檔案。
-7. **委派子代理時**只給 card.md、conventions.md 路徑與任務描述，不要叫子代理讀 skill。
+7. **委派子代理時**只給 card.md、conventions.md、map.md 路徑與任務描述，不要叫子代理讀 skill。
+8. **每個任務結束前做收尾記錄**（[workflows/wrap-up.md](workflows/wrap-up.md)）：把這次推理出的結論寫進專案記憶，下次不必重想。
 
 ## 五條硬規則
 
@@ -49,6 +51,7 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構或
 | DTO / 錯誤 / 交易跨層 | [concepts/crossing-boundaries.md](concepts/crossing-boundaries.md) |
 | 審查程式碼 | [review/checklist.md](review/checklist.md) + 專案 debt.md |
 | 記錄慣例 / 偏差 | [workflows/record-convention.md](workflows/record-convention.md) |
+| 任務收尾，該記什麼 | [workflows/wrap-up.md](workflows/wrap-up.md) |
 | 想看完整範例 | [pseudocode/borrow-book-end-to-end.md](pseudocode/borrow-book-end-to-end.md) |
 
 範例領域是圖書借閱（`Member` 借 `Book` 產生 `Loan`，規則 R1–R7），看不懂規則編號時才讀 [shared/example-domain.md](../../shared/example-domain.md)。

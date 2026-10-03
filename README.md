@@ -91,24 +91,26 @@ git submodule add <本專案 repo URL> docs/architecture-skills
 | 首次設定（只發生一次） | SKILL + 訪談 + 模板 + 語言文件兩章節 | ~13k |
 | 參考：整個 skill 全讀 | — | ~95k |
 
-## 專案記憶：讓 AI 記住你的專案跟預設哪裡不一樣
+## 專案記憶：想過的事不再想第二次
 
-每個專案都有自己的習慣，例如模組直接放 `src/lending/`、沒有 `modules/` 這層，或 use case 方法叫 `handle()`。
-AI 發現這類差異時會寫進你專案的 `docs/architecture/`，下次直接照做，不必重新推理：
+AI 每次任務結束前會做**收尾記錄**，把這次推理、搜尋、試錯得到的結論寫進你專案的 `docs/architecture/`。
+下次任務直接拿來用，不必重新掃描程式碼或重新推理：
 
 ```
 your-project/docs/architecture/
-├── card.md          # 架構卡：路徑表、新功能步驟、語言寫法、記錄規則（每次讀）
-├── conventions.md   # 與 skill 預設不同之處 → AI 照做（每次讀）
-└── debt.md          # 違反硬規則的既有程式碼 → AI 不仿照、不擅自修（審查 / 重構時讀）
+├── card.md          # 架構卡：路徑、步驟、語言寫法、常用指令（每次讀）
+├── conventions.md   # 與 skill 預設不同的慣例，例如沒有 modules/ 層 → 照做（每次讀）
+├── map.md           # 專案地圖：模組、entity、port 方法、use case 在哪 → 取代掃描原始碼（改程式前讀）
+├── decisions.md     # 判斷紀錄：放哪一層、選 A 不選 B、調查結論、試過失敗的做法（只搜尋標題，命中才讀）
+└── debt.md          # 違反硬規則的既有程式碼 → 不仿照、不擅自修（審查 / 重構時讀）
 ```
 
-- 優先順序：**你當下的指示 > conventions.md > card.md > skill 預設**
-- 硬規則（依賴方向等）不能被 conventions 推翻，違反的會記到 debt.md
-- 只出現一次的寫法不會被記錄；兩種寫法互相矛盾時，AI 會先問你
-- 這些檔案是一般 Markdown，你可以直接編輯或刪除條目
+- **只記結論，不記推理過程**；一次搜尋就找得到的事不記
+- 優先順序：**你當下的指示 > conventions.md > card.md > skill 預設**；硬規則不能被推翻
+- 記錄與程式碼不符時以程式碼為準，AI 會修正記錄
+- 每次記了什麼，AI 會在最後用一行告訴你；這些檔案是一般 Markdown，可以直接編輯或刪除
 
-規則細節見 [record-convention.md](skills/clean-architecture/workflows/record-convention.md)。
+規則細節見 [wrap-up.md](skills/clean-architecture/workflows/wrap-up.md) 與 [record-convention.md](skills/clean-architecture/workflows/record-convention.md)。
 
 首次設定完成後，CLAUDE.md / AGENTS.md 中的指引改為：
 `架構相關任務先讀 docs/architecture/card.md 與 conventions.md。`
@@ -120,9 +122,9 @@ your-project/docs/architecture/
 ```
 skills/<architecture>/
 ├── SKILL.md         # 必要：純導覽，3k 字元內：讀取策略 + 硬規則（≤ 7 條）+ 任務表
-├── templates/project/ # 必要：card.md（70 行內，日常任務只讀它就能做事）、conventions.md、debt.md
+├── templates/project/ # 必要：card.md（日常任務只讀它就能做事）、conventions、map、decisions、debt
 ├── concepts/        # 必要：每個概念都有「放什麼 / 不放什麼 / 範例」
-├── workflows/       # 必要：至少 project-interview.md、new-feature.md、record-convention.md
+├── workflows/       # 必要：至少 project-interview、new-feature、record-convention、wrap-up
 ├── structure/       # 必要：完整目錄樹 + import 白名單
 ├── pseudocode/      # 必要：用圖書借閱領域的 BorrowBook 端到端範例
 ├── languages/       # 選用：只寫與 Clean Architecture 不同之處

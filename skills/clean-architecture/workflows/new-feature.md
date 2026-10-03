@@ -203,6 +203,13 @@ loans   ← storage == "csv" ? CsvLoanRepository(config.dataDir) : SqlLoanReposi
 
 ✅ **檢查點**：`domain/`、`application/` 沒有任何變動。若需要改，代表 port 設計洩漏了技術細節，先修 port。
 
+---
+
+## Step 10 — 收尾記錄（每次都做，Step 8 交付時就做一次）
+
+依 [wrap-up.md](wrap-up.md)：新增的 entity / port 方法 / use case / adapter 寫進 `map.md`；
+Step 0–3 中推理過的判斷寫進 `decisions.md`；試出的指令寫進 card。最後一行告知使用者記了什麼。
+
 ## 給使用者的摘要模板
 
 ```
@@ -213,4 +220,5 @@ loans   ← storage == "csv" ? CsvLoanRepository(config.dataDir) : SqlLoanReposi
 - 測試：domain 3 個、use case 4 個、contract 1 組
 - 儲存：目前為 CSV（data/loans.csv）；資料庫尚未接上，確認後再進行
 - 取捨：<例：沿用既有 LoanRepository，未新增 port>
+- 已更新記憶：map（RenewLoan、Loan.renew）、DEC-004（續借規則放 Loan）
 ```

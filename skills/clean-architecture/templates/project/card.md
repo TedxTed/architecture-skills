@@ -1,7 +1,8 @@
 # 模板：架構卡（card.md）
 
 > AI 指引：首次設定時在使用者專案建立 `docs/architecture/`，放入 `card.md`（本模板 `---` 之間）、
-> [conventions.md](conventions.md)、[debt.md](debt.md)。三個檔案**一律存成 UTF-8**（即使專案是 Big5）。
+> [conventions.md](conventions.md)、[map.md](map.md)、[decisions.md](decisions.md)、[debt.md](debt.md)。
+> 這些檔案**一律存成 UTF-8**（即使專案是 Big5）。
 > 填入實際值後刪除所有 `<>` 提示。**目標 70 行以內**：這張卡是日常任務唯一必讀的檔案，
 > 要讓 AI 不查 skill 也能完成一般功能開發。
 
@@ -14,7 +15,9 @@ Clean Architecture｜Skill：`<docs/architecture-skills/skills/clean-architectur
 編碼：原始碼 `<UTF-8 / CP950>`｜CSV `<UTF-8 / UTF-8 BOM / CP950>`｜換行 `<LF / CRLF>`
 `<非 UTF-8 才保留此行：讀寫檔案前先讀 skill 的 concepts/file-encoding.md；不使用 emoji>`
 
-**讀取**：本檔 + conventions.md（照做，不重新推理）。debt.md 只在審查 / 重構時讀。
+**讀取**：本檔 + conventions.md（照做，不重新推理）。
+改程式前讀 map.md（**取代掃描原始碼**）。做設計判斷前搜尋 decisions.md 標題 `^## DEC-.*\[關鍵字\]`，命中就採用結論。
+debt.md 只在審查 / 重構時讀。
 **優先**：使用者當下指示 > conventions.md > 本檔 > skill。硬規則不可被推翻。
 
 ## 硬規則
@@ -42,7 +45,8 @@ Clean Architecture｜Skill：`<docs/architecture-skills/skills/clean-architectur
 - 錯誤：`<throw DomainError(code)>`
 - DTO：`<type 物件>`
 - 框架限制：`<domain / application 不加 @Injectable；在 module 用 factory 組裝>`
-- 依賴檢查：`<npm run lint:arch>`
+## 常用指令（試出可用的指令就補上）
+- 測試：`<npm test>`｜啟動：`<STORAGE=csv npm run dev>`｜依賴檢查：`<npm run lint:arch>`
 
 ## 新功能步驟（每步通過檢查才進下一步）
 0. 拆規則表（Entity 規則 / Use case 流程 / I/O / 需要的 Port）；不清楚的**一次問完**，附預設值
@@ -55,17 +59,22 @@ Clean Architecture｜Skill：`<docs/architecture-skills/skills/clean-architectur
 7. 組裝：`<main>` 依 `<STORAGE=csv|sql>` 切換
 8. 用 CSV 跑通 → **交付給使用者確認**
 9. 使用者同意後才做 SQL adapter；contract test 須同時通過，domain / application 零修改
+10. 收尾記錄（見下）
 
 目前儲存：`<csv>`｜資料夾：`<data/>`
 
-## 發現與預設不同時（含使用者糾正）
-- 不違反硬規則、使用者明說或 ≥ 2 處一致 → 寫入 conventions.md
-- 違反硬規則 → 寫入 debt.md（不仿照、不擅自修）
-- 兩種寫法矛盾 → 先問使用者
-- 格式：`## C-00N [標籤] 標題` + 預設 / 本專案 / 依據（日期）三行；記錄後一行告知使用者
+## 收尾（每個任務結束前必做，沒有新東西就跳過）
+- 新增 / 改了 entity、port 方法、use case、adapter → `map.md` 每項一行
+- 推理過的判斷、調查結論、試過失敗的做法 → `decisions.md`：`## DEC-N [模組][主題] 結論` + 理由 / 否決
+- 試出可用的指令 → 本檔「常用指令」
+- 與預設不同的慣例（使用者明說或 ≥ 2 處一致）→ `conventions.md`：`## C-N [標籤] 標題` + 預設 / 本專案 / 依據
+- 違反硬規則的既有程式碼 → `debt.md`；兩種寫法矛盾 → 先問使用者
+- 只記結論，不記推理過程；記錄與程式碼不符時以程式碼為準並修正
+- 最後一行告知使用者記了什麼
 
 ## 卡上沒寫到時才查 skill
 步驟細節 `workflows/new-feature.md`｜CSV 樣板 `concepts/csv-first.md`｜換 DB `workflows/add-adapter.md`
 放哪不確定 `concepts/placement-guide.md`｜審查 `review/checklist.md`｜跨層 `concepts/crossing-boundaries.md`
+收尾該記什麼 `workflows/wrap-up.md`
 
 ---
