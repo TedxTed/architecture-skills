@@ -33,7 +33,8 @@ project/
 │   │   │   │       └── renew_loan/
 │   │   │   ├── adapters/
 │   │   │   │   ├── http/
-│   │   │   │   ├── persistence/
+│   │   │   │   ├── persistence/csv/         # ① 新功能先做
+│   │   │   │   ├── persistence/sql/         # ② 使用者確認後才做
 │   │   │   │   └── integration/             # 實作 borrower_lookup 等，呼叫其他模組
 │   │   │   ├── public_api.x                 # 本模組對外公開的唯一入口
 │   │   │   └── module.x                     # 本模組的組裝（子 composition root）

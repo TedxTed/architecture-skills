@@ -42,13 +42,16 @@ project/
 │   │   ├── cli/                             # driving
 │   │   │   └── admin_commands.x
 │   │   ├── persistence/                     # driven
-│   │   │   ├── models.x                     # ORM model / table 定義
-│   │   │   ├── sql_member_repository.x
-│   │   │   ├── sql_book_repository.x
-│   │   │   ├── sql_loan_repository.x
-│   │   │   ├── sql_loan_queries.x
-│   │   │   ├── sql_unit_of_work.x
-│   │   │   └── mappers.x
+│   │   │   ├── mappers.x                    # entity ⇄ row（CSV 與 SQL 共用）
+│   │   │   ├── csv/                         # ① 新功能先做這個（見 concepts/csv-first.md）
+│   │   │   │   ├── csv_store.x
+│   │   │   │   ├── csv_loan_repository.x
+│   │   │   │   └── csv_unit_of_work.x
+│   │   │   └── sql/                         # ② 使用者確認後才做
+│   │   │       ├── models.x                 # ORM model / table 定義
+│   │   │       ├── sql_loan_repository.x
+│   │   │       ├── sql_loan_queries.x
+│   │   │       └── sql_unit_of_work.x
 │   │   ├── notification/                    # driven
 │   │   │   └── smtp_notifier.x
 │   │   └── time/

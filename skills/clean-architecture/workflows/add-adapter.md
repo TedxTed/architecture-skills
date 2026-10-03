@@ -5,16 +5,33 @@
 
 ---
 
-## 情境 A：替換 Driven Adapter（例：PostgreSQL → MongoDB）
+## 情境 A：替換 Driven Adapter（例：CSV → PostgreSQL）
+
+最常見的情況：新功能依 [CSV 優先](../concepts/csv-first.md) 跑通後，換成正式資料庫。換成其他資料庫（例如 PostgreSQL → MongoDB）步驟相同。
 
 ### 步驟
 
-1. **找到 port**：`application/ports/loan_repository.x`。不修改它。
-2. **新增實作**：`adapters/persistence/mongo/mongo_loan_repository.x`
-3. **新增 mapper**：Entity ⇄ Mongo document
+1. **找到 port**：`<application>/ports/loan_repository.x`。不修改它。
+2. **新增實作**：`<adapters>/persistence/sql/sql_loan_repository.x`（含 migration）
+3. **新增 mapper**：Entity ⇄ DB row（可沿用 CSV 版的 row 結構）
 4. **跑同一套 repository contract test**（見下方）
-5. **在 main 切換**：`loans ← MongoLoanRepository(mongo)`
-6. 舊的 adapter 確認無用後再刪除
+5. **在 main 以設定切換**：`storage=sql`
+6. **CSV adapter 建議保留**，作為本機開發與展示用；若使用者決定刪除，記錄到 `conventions.md`
+
+```
+// FILE: <adapters>/persistence/sql/sql_loan_repository.x
+ADAPTER SqlLoanRepository IMPLEMENTS LoanRepository
+  DEPENDS ON db: DatabaseConnection
+
+  FUNCTION findOpenByMember(memberId)
+    rows ← db.query("SELECT * FROM loans WHERE member_id = ? AND returned_at IS NULL", memberId.value)
+    RETURN rows.map(toEntity)
+
+  FUNCTION save(loan)
+    db.upsert("loans", toRow(loan))
+```
+
+換成文件資料庫時也一樣，只是換成對應的查詢方式：
 
 ```
 // FILE: <adapters>/persistence/mongo/mongo_loan_repository.x
@@ -41,6 +58,7 @@ CONTRACT_TEST LoanRepositoryContract(createRepo: Function -> LoanRepository)
   TEST "save 同一 id 兩次為更新而非新增"
 
 RUN LoanRepositoryContract WITH () -> InMemoryLoanRepository()
+RUN LoanRepositoryContract WITH () -> CsvLoanRepository(CsvStore(tempDir()))
 RUN LoanRepositoryContract WITH () -> SqlLoanRepository(testDb)
 RUN LoanRepositoryContract WITH () -> MongoLoanRepository(testMongo)
 ```

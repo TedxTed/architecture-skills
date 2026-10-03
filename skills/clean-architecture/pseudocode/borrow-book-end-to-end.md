@@ -31,8 +31,9 @@
 │   │   ├── loan_controller.x         ⑧ Driving adapter
 │   │   └── error_mapping.x
 │   ├── persistence/
-│   │   ├── sql_loan_repository.x     ⑨ Driven adapter
-│   │   └── loan_mapper.x
+│   │   ├── loan_mapper.x
+│   │   ├── csv/csv_loan_repository.x ⑨ Driven adapter（先做，見 concepts/csv-first.md）
+│   │   └── sql/sql_loan_repository.x ⑨ 使用者確認後才做
 │   ├── notification/smtp_notifier.x  ⑨
 │   └── time/system_clock.x           ⑨
 ├── <main>                            ⑩ Composition root
@@ -193,7 +194,16 @@ ADAPTER HttpLoanController
 ## ⑨ Adapters：Driven
 
 ```
-// FILE: <adapters>/persistence/sql_loan_repository.x
+// FILE: <adapters>/persistence/csv/csv_loan_repository.x   ← 先做這個
+// 完整樣板見 concepts/csv-first.md
+ADAPTER CsvLoanRepository IMPLEMENTS LoanRepository
+  DEPENDS ON store: CsvStore
+  FUNCTION findOpenByMember(memberId)
+    RETURN store.readAll("loans.csv")
+      .filter(r -> r.member_id == memberId.value AND r.returned_at == "")
+      .map(toEntity)                                   // loan_mapper.x
+
+// FILE: <adapters>/persistence/sql/sql_loan_repository.x   ← 使用者確認功能後才做
 ADAPTER SqlLoanRepository IMPLEMENTS LoanRepository
   DEPENDS ON db: DatabaseConnection
 

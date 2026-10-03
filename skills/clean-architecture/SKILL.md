@@ -85,7 +85,8 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構或
 |---|---|---|
 | 新增功能 / API | [workflows/new-feature.md](workflows/new-feature.md) | `languages/<你的語言>.md` |
 | 只加一個 use case | [workflows/new-use-case.md](workflows/new-use-case.md) | — |
-| 換 DB / 加第三方 / 加 CLI、MQ 入口 | [workflows/add-adapter.md](workflows/add-adapter.md) | — |
+| 寫 CSV 儲存 adapter | [concepts/csv-first.md](concepts/csv-first.md) | — |
+| CSV 換成 DB / 加第三方 / 加 CLI、MQ 入口 | [workflows/add-adapter.md](workflows/add-adapter.md) | — |
 | 重構舊程式 | [workflows/refactor-legacy.md](workflows/refactor-legacy.md) | [concepts/placement-guide.md](concepts/placement-guide.md) |
 | 不確定程式碼放哪 | [concepts/placement-guide.md](concepts/placement-guide.md) | [concepts/layers.md](concepts/layers.md) |
 | DTO / 錯誤 / 交易怎麼跨層 | [concepts/crossing-boundaries.md](concepts/crossing-boundaries.md) | — |
@@ -100,7 +101,7 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構或
 
 ## 工作方式
 
-- **由內往外**：domain → application → 測試 → adapters → 組裝
+- **由內往外**：domain → application → 測試 → **CSV adapter** → driving adapter → 組裝 → 用 CSV 跑通 → 使用者確認後才接資料庫（見 [concepts/csv-first.md](concepts/csv-first.md)）
 - **沿用使用者的命名**，不強迫改名
 - **務實**：可省略只有單一實作的輸入 port、presenter；**不可**違反依賴方向
 - **告知取捨**：做了簡化就跟使用者說

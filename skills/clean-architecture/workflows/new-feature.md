@@ -114,12 +114,30 @@ TEST "已續借過一次的借閱不能再續借"
 
 ---
 
-## Step 5 — Adapters
+## Step 5 — Driven Adapter：先用 CSV，不接資料庫
+
+**動作**：新 port 或新 port 方法，**先實作 CSV 版本**。做法與樣板見 [concepts/csv-first.md](../concepts/csv-first.md)。
+
+```
+// FILE: <adapters>/persistence/csv/csv_loan_repository.x   （新增或補方法）
+FUNCTION findById(id)
+  RETURN readRows("loans.csv").find(r -> r.id == id.value).map(toEntity)
+```
+
+若專案已有 DB adapter，**新增的 port 方法仍先在 CSV 版本實作並跑通**，再補 DB 版本（Step 9）。
+若使用者已在 `conventions.md` 記錄「跳過 CSV 階段」，照記錄執行。
+
+✅ **檢查點**：
+- [ ] port 介面中沒有任何 SQL / ORM 的概念（CSV 實作得出來，就代表 port 是乾淨的）
+- [ ] CSV adapter 通過 repository contract test（見 [add-adapter.md](add-adapter.md#repository-contract-test強烈建議)）
+
+---
+
+## Step 6 — Driving Adapter
 
 **動作**：
-1. **Driving**：controller / CLI handler —— 解析輸入 → Input DTO → 呼叫 use case → 轉換輸出
-2. **錯誤對應**：新的錯誤加進 `error_mapping`
-3. **Driven**：若有新 port 或新 port 方法，實作它（含 mapper）
+1. controller / CLI handler —— 解析輸入 → Input DTO → 呼叫 use case → 轉換輸出
+2. 新的錯誤加進 `error_mapping`
 
 ```
 // FILE: <adapters>/http/loan_controller.x   （新增）
@@ -137,24 +155,42 @@ LoanNotFound                               → (404, error.code)
 ✅ **檢查點**：
 - [ ] controller 沒有業務判斷
 - [ ] 新錯誤都有 HTTP 對應
-- [ ] repository 的 SQL / ORM 程式碼沒有洩漏到 adapter 以外
 
 ---
 
-## Step 6 — 組裝
+## Step 7 — 組裝
 
-**動作**：在 `main`（或模組的 `module.x`）建立 use case、注入 port 實作、接到 controller、註冊路由。
+**動作**：在 `main`（或模組的 `module.x`）建立 use case、依設定選擇儲存 adapter、接到 controller、註冊路由。
 
-✅ **檢查點**：只有 `main` 中出現 `new SqlXxx(...)` / `SystemClock()`。
+```
+storage ← config.storage            // "csv"（預設）| "sql"
+loans   ← storage == "csv" ? CsvLoanRepository(config.dataDir) : SqlLoanRepository(db)
+```
+
+✅ **檢查點**：只有 `main` 中出現 `CsvXxx(...)` / `SqlXxx(...)` / `SystemClock()`。
 
 ---
 
-## Step 7 — 整合測試與最終審查
+## Step 8 — 用 CSV 跑通端到端 ★ 交付點
 
 **動作**：
-1. 一個端到端或 adapter 整合測試（HTTP → DB），只測主要成功路徑 + 一個錯誤
-2. 跑過 [review/checklist.md](../review/checklist.md)
-3. 向使用者摘要：新增 / 修改的檔案、做了哪些取捨
+1. 以 `storage=csv` 啟動，實際呼叫 API / CLI，確認主要成功路徑 + 一個錯誤
+2. 打開 CSV 檔，確認資料寫入正確
+3. 跑過 [review/checklist.md](../review/checklist.md)
+4. 向使用者摘要，並詢問：**功能行為是否符合預期？要現在接資料庫，還是之後再接？**
+
+✅ **檢查點**：使用者確認功能行為正確。**到此功能已完成**，資料庫只是換儲存方式。
+
+---
+
+## Step 9 — 換成資料庫（使用者確認後才做，可另開任務）
+
+**動作**：依 [add-adapter.md 情境 A](add-adapter.md#情境-a替換-driven-adapter例csv--postgresql) 實作 DB adapter：
+1. 實作 `SqlXxxRepository`（含 mapper、migration）
+2. **跑同一套 contract test**，CSV 與 SQL 都要通過
+3. 切換設定 `storage=sql`，重跑 Step 8 的端到端驗證
+
+✅ **檢查點**：`domain/`、`application/` 沒有任何變動。若需要改，代表 port 設計洩漏了技術細節，先修 port。
 
 ## 給使用者的摘要模板
 
@@ -163,6 +199,7 @@ LoanNotFound                               → (404, error.code)
 - 規則：R7a/R7b/R7c → Loan.renew()
 - Use case：RenewLoan（application/use_cases/renew_loan/）
 - API：POST /loans/{id}/renew → 200 { dueDate }；錯誤 404/422
-- 測試：domain 3 個、use case 4 個、整合 1 個
+- 測試：domain 3 個、use case 4 個、contract 1 組
+- 儲存：目前為 CSV（data/loans.csv）；資料庫尚未接上，確認後再進行
 - 取捨：<例：沿用既有 LoanRepository，未新增 port>
 ```

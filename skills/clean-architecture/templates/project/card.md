@@ -32,6 +32,11 @@
 4. 外部能力（含時間、ID）用 Port；實作在 Adapter
 5. 只在 composition root 組裝
 
+## 開發順序（每個新功能）
+domain → application → use case 測試 → **CSV adapter** → driving adapter → 組裝
+→ 用 CSV 跑通並請使用者確認 → 使用者同意後才接資料庫（contract test 須同時通過）
+目前儲存：`<csv / sql>`｜切換方式：`<STORAGE=csv 環境變數>`｜資料夾：`<data/>`
+
 ## 結構：`<A. by-layer / B. by-feature>`
 
 | 佔位符 | 本專案路徑 |
@@ -56,7 +61,8 @@
 ## 任務 → 讀哪份（skill 內相對路徑）
 - 新功能：`workflows/new-feature.md`
 - 新 use case：`workflows/new-use-case.md`
-- 新 adapter：`workflows/add-adapter.md`
+- CSV adapter：`concepts/csv-first.md`
+- CSV 換 DB / 新 adapter：`workflows/add-adapter.md`
 - 審查：`review/checklist.md`
 - 放哪不確定：`concepts/placement-guide.md`
 
