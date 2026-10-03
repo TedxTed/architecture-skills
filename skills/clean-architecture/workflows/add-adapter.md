@@ -58,7 +58,7 @@ CONTRACT_TEST LoanRepositoryContract(createRepo: Function -> LoanRepository)
   TEST "save 同一 id 兩次為更新而非新增"
 
 RUN LoanRepositoryContract WITH () -> InMemoryLoanRepository()
-RUN LoanRepositoryContract WITH () -> CsvLoanRepository(CsvStore(tempDir()))
+RUN LoanRepositoryContract WITH () -> CsvLoanRepository(CsvStore(tempDir(), "<專案的 CSV 編碼>"))
 RUN LoanRepositoryContract WITH () -> SqlLoanRepository(testDb)
 RUN LoanRepositoryContract WITH () -> MongoLoanRepository(testMongo)
 ```

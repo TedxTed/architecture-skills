@@ -52,7 +52,7 @@ git submodule add <本專案 repo URL> docs/architecture-skills
 
 | 工具 | 放在哪 | 內容 |
 |---|---|---|
-| Claude Code | `CLAUDE.md` | `撰寫或審查程式碼架構時，先閱讀 docs/architecture-skills/skills/clean-architecture/SKILL.md 並遵循。` |
+| Claude Code | `CLAUDE.md` | `架構相關任務：若 docs/architecture/card.md 存在就讀它，否則讀 docs/architecture-skills/skills/clean-architecture/SKILL.md。` |
 | Cursor | `.cursor/rules/architecture.mdc` | 同上 |
 | GitHub Copilot | `.github/copilot-instructions.md` | 同上 |
 | Codex / 其他支援 AGENTS.md 的工具 | `AGENTS.md` | 同上 |
@@ -69,22 +69,27 @@ git submodule add <本專案 repo URL> docs/architecture-skills
 
 ## 省 token 的設計
 
-AI 不需要讀完整個專案（全部約 4 萬 token）。
+核心概念：**架構卡是「編譯過的專案速查表」**。首次設定時把路徑、開發步驟、語言寫法濃縮進 card，
+之後的日常任務只讀 card + conventions，skill 文件只在卡上沒寫到時才查。
 
 | 機制 | 作用 |
 |---|---|
-| **專案記憶資料夾** | 首次使用時，AI 在你的專案建立 `docs/architecture/`（見下節）。之後的任務只讀 card + conventions + 一份 workflow |
-| **任務表** | `SKILL.md` 中每種任務只列 1 份必讀、1 份選讀 |
-| **語言隔離** | 只讀使用者語言的那份 `languages/*.md` |
-| **佔位符** | 兩種結構共用一套範例，不必讀兩份 |
+| **首次訪談** | AI 只讀套件設定檔與資料夾名稱，其餘**一輪問完**（≤ 12 題，附預設值），不掃描原始碼推理 |
+| **架構卡自給自足** | card 內含路徑表、新功能 9 步驟、語言寫法、記錄規則。一般功能開發不需要再讀 skill |
+| **指引切換** | 設定完成後，CLAUDE.md / AGENTS.md 的指引從 SKILL.md **換成** card.md，之後不再載入 SKILL.md |
+| **語言文件只讀一次** | 首次設定時只讀對照表與框架章節，濃縮成 card 中的 6 行 |
+| **章節式讀取** | 大檔先看標題列表，只讀需要的章節 |
+| **子代理** | 只拿 card + conventions，不讀 skill |
 
-大約的讀取量：
+讀取量（以字元數估算，實際 token 依模型而異）：
 
-| 情境 | 讀取 | 約略 token |
+| 情境 | 讀取 | 約略字元 |
 |---|---|---|
-| 首次設定 | SKILL.md + choosing.md + 模板 | ~6k（只發生一次） |
-| 之後新增功能 | card + conventions + new-feature.md | ~3.5k |
-| 之後審查程式碼 | card + conventions + debt + checklist.md | ~2k |
+| 日常新增功能 | card + conventions | ~3k |
+| 審查程式碼 | card + conventions + debt + checklist | ~5k |
+| 此專案第一次做新功能（想看細節） | 上述 + new-feature.md | ~8k |
+| 首次設定（只發生一次） | SKILL + 訪談 + 模板 + 語言文件兩章節 | ~13k |
+| 參考：整個 skill 全讀 | — | ~95k |
 
 ## 專案記憶：讓 AI 記住你的專案跟預設哪裡不一樣
 
@@ -93,7 +98,7 @@ AI 發現這類差異時會寫進你專案的 `docs/architecture/`，下次直�
 
 ```
 your-project/docs/architecture/
-├── card.md          # 架構卡：選了哪種結構、路徑對照表、讀取順序（每次讀）
+├── card.md          # 架構卡：路徑表、新功能步驟、語言寫法、記錄規則（每次讀）
 ├── conventions.md   # 與 skill 預設不同之處 → AI 照做（每次讀）
 └── debt.md          # 違反硬規則的既有程式碼 → AI 不仿照、不擅自修（審查 / 重構時讀）
 ```
@@ -114,10 +119,10 @@ your-project/docs/architecture/
 
 ```
 skills/<architecture>/
-├── SKILL.md         # 必要：讀取策略 + 硬規則（≤ 7 條）+ 路徑佔位符對照（A/B）+ 任務表
-├── templates/project/ # 必要：card.md（60 行內）、conventions.md、debt.md
+├── SKILL.md         # 必要：純導覽，3k 字元內：讀取策略 + 硬規則（≤ 7 條）+ 任務表
+├── templates/project/ # 必要：card.md（70 行內，日常任務只讀它就能做事）、conventions.md、debt.md
 ├── concepts/        # 必要：每個概念都有「放什麼 / 不放什麼 / 範例」
-├── workflows/       # 必要：至少 new-feature.md、record-convention.md
+├── workflows/       # 必要：至少 project-interview.md、new-feature.md、record-convention.md
 ├── structure/       # 必要：完整目錄樹 + import 白名單
 ├── pseudocode/      # 必要：用圖書借閱領域的 BorrowBook 端到端範例
 ├── languages/       # 選用：只寫與 Clean Architecture 不同之處

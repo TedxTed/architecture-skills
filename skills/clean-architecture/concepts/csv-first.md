@@ -46,7 +46,8 @@ project/
 
 | 項目 | 約定 |
 |---|---|
-| 編碼 | UTF-8，第一列為欄位名稱 |
+| 編碼 | 依 card.md 的 CSV 編碼（預設 UTF-8）；要給 Excel 直接開用 UTF-8 with BOM；Big5 見 [file-encoding.md](file-encoding.md) |
+| 第一列 | 欄位名稱 |
 | 一個檔案 | 一種 entity（一張「表」） |
 | 日期時間 | ISO 8601：`2026-10-03`、`2026-10-03T10:00:00Z` |
 | 空值 | 空字串 = Nothing |
@@ -63,15 +64,15 @@ loan-1,m1,b1,2026-10-01T10:00:00Z,2026-10-15,,0
 ```
 // FILE: <adapters>/persistence/csv/csv_store.x
 ADAPTER CsvStore
-  DEPENDS ON dataDir: Path
+  DEPENDS ON dataDir: Path, encoding: String          // "utf-8" | "utf-8-bom" | "cp950"
 
   FUNCTION readAll(file: String) -> List<Map<String, String>>
     IF NOT exists(dataDir / file)  RETURN []
-    RETURN parseCsv(readText(dataDir / file))         // 使用語言的 CSV 函式庫，不要自己 split(",")
+    RETURN parseCsv(readText(dataDir / file, encoding))   // 使用語言的 CSV 函式庫，不要自己 split(",")
 
   FUNCTION writeAll(file: String, rows: List<Map>, columns: List<String>)
     tmp ← dataDir / (file + ".tmp")
-    writeText(tmp, formatCsv(rows, columns))
+    writeText(tmp, formatCsv(rows, columns), encoding)    // 無法表示的字元要報錯，不可變成 ?
     rename(tmp, dataDir / file)                        // 原子替換，避免寫到一半損毀
 
 // FILE: <adapters>/persistence/csv/csv_loan_repository.x
@@ -126,7 +127,7 @@ FUNCTION listByMember(memberId)
 ```
 // FILE: <main>
 IF config.storage == "csv"            // 預設值
-  store ← CsvStore(config.dataDir)
+  store ← CsvStore(config.dataDir, config.csvEncoding)
   loans ← CsvLoanRepository(store)
   uow   ← CsvUnitOfWork(config.dataDir)
 ELSE IF config.storage == "sql"

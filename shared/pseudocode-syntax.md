@@ -42,7 +42,7 @@
 `.x` 代表「你的語言副檔名」。
 
 `<domain>`、`<application>`、`<adapters>`、`<infrastructure>`、`<main>`、`<tests>` 是**層級佔位符**，
-依專案選用的資料夾結構（by-layer / by-feature）替換成實際路徑。對照表見各架構 skill 的 `SKILL.md`。
+依專案選用的資料夾結構（by-layer / by-feature）替換成實際路徑。實際路徑記在使用者專案的 `docs/architecture/card.md`。
 
 ## 範例
 

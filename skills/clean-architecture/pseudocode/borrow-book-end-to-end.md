@@ -5,7 +5,7 @@
 
 ## 檔案總覽
 
-路徑使用層級佔位符，實際位置依 by-layer / by-feature 而定，見 [SKILL.md 路徑對照](../SKILL.md#路徑佔位符)。
+路徑使用層級佔位符，實際位置依 by-layer / by-feature 而定，依專案 card.md 的路徑表替換（尚未設定時見 [project-interview.md 3a](../workflows/project-interview.md#3a-路徑表依題-34-的答案填入-cardmd)）。
 
 ```
 ├── <domain>/

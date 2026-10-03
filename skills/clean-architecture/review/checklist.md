@@ -41,6 +41,7 @@
 - [ ] 有 repository contract test
 - [ ] 有自動化的依賴規則檢查（lint / arch test）
 - [ ] 資料夾命名與專案既有慣例一致
+- [ ] 新增 / 修改的檔案編碼與 card.md 一致；非 UTF-8 專案中沒有 emoji 或無法表示的字元
 
 ## 快速自動檢查（給 AI 執行）
 
