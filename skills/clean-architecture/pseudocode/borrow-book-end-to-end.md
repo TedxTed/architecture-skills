@@ -64,7 +64,7 @@ DOMAIN_ERROR HasOverdueLoans      code "HAS_OVERDUE_LOANS"
 
 ## ③ Domain：Entities
 
-`Member`、`Loan` 的完整內容見 [layers.md](../concepts/layers.md#1-entitiesdomain)。
+`Member`、`Loan` 的完整內容見 [01-entities.md](../layers/01-entities.md#pseudocode)。
 
 ```
 // FILE: <domain>/book.x
@@ -231,7 +231,7 @@ ADAPTER SmtpNotifier IMPLEMENTS Notifier
 
 ## ⑩ Composition Root
 
-見 [layers.md 第 4 節](../concepts/layers.md#4-frameworks--driversinfrastructure--main)。
+見 [04-frameworks-drivers.md](../layers/04-frameworks-drivers.md#pseudocode)。
 
 ## ⑪ Domain 測試（不需要任何假物件）
 

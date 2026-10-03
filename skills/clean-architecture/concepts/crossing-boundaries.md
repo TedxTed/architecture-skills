@@ -1,4 +1,4 @@
-# 跨越邊界：DTO、錯誤、交易
+# 跨越邊界：資料、錯誤、交易
 
 這三件事是實作時最常出錯的地方。
 
@@ -6,18 +6,10 @@
 
 ## 1. 資料怎麼跨層
 
-```
-HTTP JSON ─(controller 轉)─▶ InputDTO ─▶ UseCase ─▶ Entity
-                                            │
-HTTP JSON ◀─(presenter 轉)── OutputDTO ◀────┘
-
-Entity ─(repository mapper 轉)─▶ DB Row
-```
+DTO 的種類、位置、轉換責任、驗證、PATCH 處理，見 **[dto.md](dto.md)**。本節只補充 Entity 與儲存格式之間的轉換。
 
 | 規則 | 原因 |
 |---|---|
-| Use case 輸入是 **Input DTO**（或基本型別），不是 HTTP request | Use case 不該知道 HTTP |
-| Use case 輸出是 **Output DTO**，不是 Entity | 避免外層呼叫 entity 方法、繞過 use case 改狀態 |
 | Repository 進出的是 **Entity**，不是 DB row | Port 用內層語言 |
 | ORM model ≠ Entity，兩者之間用 mapper 轉 | Entity 不該被資料表結構綁架 |
 

@@ -82,7 +82,7 @@ FUNCTION renew(now: DateTime)
 
 ## Step 3 — Application：DTO + Use Case
 
-**動作**：照 [use case 標準步驟](../concepts/layers.md#2-use-casesapplication) 寫：轉換輸入 → 載入 → 呼叫 entity → 儲存 → 副作用 → 回傳 DTO。
+**動作**：照 [use case 標準步驟](../layers/02-use-cases.md#怎麼寫步驟) 寫：轉換輸入 → 載入 → 呼叫 entity → 儲存 → 副作用 → 回傳 DTO。
 
 ```
 // FILE: <application>/use_cases/renew_loan/renew_loan_dto.x

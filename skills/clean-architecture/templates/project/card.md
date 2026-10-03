@@ -73,8 +73,9 @@ debt.md 只在審查 / 重構時讀。
 - 最後一行告知使用者記了什麼
 
 ## 卡上沒寫到時才查 skill
+某一層怎麼寫 `layers/01-entities.md`、`02-use-cases.md`、`03-interface-adapters.md`、`04-frameworks-drivers.md`
 步驟細節 `workflows/new-feature.md`｜CSV 樣板 `concepts/csv-first.md`｜換 DB `workflows/add-adapter.md`
-放哪不確定 `concepts/placement-guide.md`｜審查 `review/checklist.md`｜跨層 `concepts/crossing-boundaries.md`
+放哪不確定 `concepts/placement-guide.md`｜DTO `concepts/dto.md`｜錯誤 / 交易 `concepts/crossing-boundaries.md`｜審查 `review/checklist.md`
 收尾該記什麼 `workflows/wrap-up.md`
 
 ---

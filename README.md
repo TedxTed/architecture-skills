@@ -28,7 +28,8 @@ architecture-skills/
     └── clean-architecture/
         ├── SKILL.md                 # ★ 入口：讀取策略 + 硬規則 + 路徑對照 + 任務表
         ├── templates/project/       # 專案記憶模板：card / conventions / debt
-        ├── concepts/                # 分層、放置判斷、跨邊界（DTO / 錯誤 / 交易）
+        ├── layers/                  # 每層一個檔案：遵循規則、pseudocode、與其他層的配合
+        ├── concepts/                # DTO、放置判斷、跨邊界、CSV 優先、檔案編碼
         ├── workflows/               # 新功能、新 use case、新 adapter、重構
         ├── structure/               # 選擇結構、A. by-layer、B. by-feature
         ├── pseudocode/              # 端到端完整範例
@@ -123,7 +124,10 @@ your-project/docs/architecture/
 skills/<architecture>/
 ├── SKILL.md         # 必要：純導覽，3k 字元內：讀取策略 + 硬規則（≤ 7 條）+ 任務表
 ├── templates/project/ # 必要：card.md（日常任務只讀它就能做事）、conventions、map、decisions、debt
-├── concepts/        # 必要：每個概念都有「放什麼 / 不放什麼 / 範例」
+├── layers/          # 必要：該架構的每一層 / 每個元件一個檔案，固定章節：
+│                    #   職責、遵循規則（必須/禁止）、放什麼、怎麼寫、pseudocode、
+│                    #   與其他層的配合、測試、自我檢查
+├── concepts/        # 必要：跨層的主題，每個概念都有「放什麼 / 不放什麼 / 範例」
 ├── workflows/       # 必要：至少 project-interview、new-feature、record-convention、wrap-up
 ├── structure/       # 必要：完整目錄樹 + import 白名單
 ├── pseudocode/      # 必要：用圖書借閱領域的 BorrowBook 端到端範例

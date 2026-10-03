@@ -24,6 +24,8 @@
 - [ ] 一個 use case 一個類別 / 函式，一個公開方法
 - [ ] Use case 中的 `IF` 只做流程判斷（找不到、權限），不做業務規則判斷
 - [ ] 回傳 Output DTO，不回傳 entity
+- [ ] 每個 use case 有自己的 Input / Output DTO，沒有跨 use case 共用的萬用 DTO
+- [ ] Input / Output DTO 沒有框架註解、沒有包 entity、沒有業務方法
 - [ ] Port 介面用業務語言，參數 / 回傳是內層型別
 - [ ] 副作用（通知、事件）發生在交易成功之後
 
@@ -32,6 +34,7 @@
 - [ ] 錯誤翻譯（領域錯誤 → HTTP status）集中在一處
 - [ ] 外部 SDK 的錯誤型別沒有洩漏到 adapter 之外
 - [ ] Repository 回傳 entity，不回傳 ORM model / row
+- [ ] Request / Response model、Row、第三方 payload 沒有離開 adapter 層
 
 ## 🟡 建議改善
 

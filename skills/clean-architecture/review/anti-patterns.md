@@ -143,7 +143,22 @@ PORT LoanRepository
 
 ---
 
-## 10. 交易內做副作用
+## 10. 萬用 DTO
+
+**症狀**：一個 `LoanDto` 同時當建立的輸入、更新的輸入、查詢結果、API 回應，欄位全部 optional。
+
+```
+// ❌
+DTO LoanDto { id?, memberId?, bookId?, dueDate?, returnedAt?, fine?, bookTitle?, ... }
+```
+
+**為什麼不好**：看不出每個操作真正需要哪些欄位；改一個 API 回應會影響所有 use case；optional 欄位讓驗證失去意義。
+
+**修法**：每個 use case 自己的 Input / Output；API 格式另外定義 Request / Response。見 [dto.md](../concepts/dto.md)。
+
+---
+
+## 11. 交易內做副作用
 
 **症狀**：在交易 commit 之前寄 email / 呼叫外部 API。
 

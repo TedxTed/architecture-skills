@@ -27,14 +27,14 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構或
 
 ## 四層
 
-| 層 | 佔位符 | 放什麼 |
-|---|---|---|
-| Entities | `<domain>` | Entity、Value、領域錯誤（沒有電腦也成立的規則） |
-| Use Cases | `<application>` | Use case、Port 介面、DTO（系統執行一個操作的步驟） |
-| Interface Adapters | `<adapters>` | Controller、Repository 實作（CSV / SQL）、Mapper |
-| Frameworks & Drivers | `<infrastructure>`、`<main>` | 連線、Server、設定、組裝 |
+| 層 | 佔位符 | 放什麼 | 詳細（規則、pseudocode、與其他層的配合） |
+|---|---|---|---|
+| Entities | `<domain>` | Entity、Value、領域錯誤（沒有電腦也成立的規則） | [layers/01-entities.md](layers/01-entities.md) |
+| Use Cases | `<application>` | Use case、Port 介面、DTO（系統執行一個操作的步驟） | [layers/02-use-cases.md](layers/02-use-cases.md) |
+| Interface Adapters | `<adapters>` | Controller、Repository 實作（CSV / SQL）、Mapper | [layers/03-interface-adapters.md](layers/03-interface-adapters.md) |
+| Frameworks & Drivers | `<infrastructure>`、`<main>` | 連線、Server、設定、組裝 | [layers/04-frameworks-drivers.md](layers/04-frameworks-drivers.md) |
 
-範例中的 `<domain>` 等佔位符，依專案 card.md 的路徑表替換。
+範例中的 `<domain>` 等佔位符，依專案 card.md 的路徑表替換。**寫哪一層就只讀那一層的檔案。**
 
 ## 任務表（卡上沒寫到時才查）
 
@@ -47,8 +47,10 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構或
 | CSV 換 DB / 加第三方 / 加入口 | [workflows/add-adapter.md](workflows/add-adapter.md) |
 | 編碼不是 UTF-8 | [concepts/file-encoding.md](concepts/file-encoding.md) |
 | 重構舊程式 | [workflows/refactor-legacy.md](workflows/refactor-legacy.md) |
+| 寫某一層但不確定怎麼寫 | `layers/0N-<該層>.md`（見上方四層表） |
 | 不確定程式碼放哪 | [concepts/placement-guide.md](concepts/placement-guide.md) |
-| DTO / 錯誤 / 交易跨層 | [concepts/crossing-boundaries.md](concepts/crossing-boundaries.md) |
+| DTO：種類、放哪、誰轉換、PATCH | [concepts/dto.md](concepts/dto.md) |
+| 錯誤 / 交易 / Entity ⇄ Row 跨層 | [concepts/crossing-boundaries.md](concepts/crossing-boundaries.md) |
 | 審查程式碼 | [review/checklist.md](review/checklist.md) + 專案 debt.md |
 | 記錄慣例 / 偏差 | [workflows/record-convention.md](workflows/record-convention.md) |
 | 任務收尾，該記什麼 | [workflows/wrap-up.md](workflows/wrap-up.md) |
