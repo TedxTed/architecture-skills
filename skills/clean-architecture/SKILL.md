@@ -5,6 +5,12 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構或
 
 # Clean Architecture Skill
 
+讓業務規則不依賴框架、資料庫與 UI。本 skill 提供**規則**（什麼依賴不可以出現、程式碼放哪一層）、
+**做法**（新增功能、換資料庫、重構、審查的逐步流程）與**範例**（可照抄的 Java 程式碼）。
+
+**何時使用**：業務規則多、會長期維護；同一功能有多個入口（HTTP、CLI、排程、MQ）；將來可能換資料庫或框架；重構大泥球；審查架構。
+**何時不要用**：純 CRUD、原型、一次性腳本。遇到時先告知使用者取捨，由使用者決定。
+
 ## 讀取策略（必讀）
 
 1. **專案有 `docs/architecture/card.md`** → 你不該在讀這頁。改讀 card.md + conventions.md，照卡上的步驟做；
@@ -54,7 +60,8 @@ description: 以 Clean Architecture（乾淨架構）設計、實作、重構或
 | 錯誤 / 交易 / 競態 / Entity ⇄ Row 跨層 | [concepts/crossing-boundaries.md](concepts/crossing-boundaries.md) |
 | 一件事發生後有多個後續動作、跨模組通知 | [concepts/domain-events.md](concepts/domain-events.md) |
 | 前端專案（Vue / React） | [concepts/frontend.md](concepts/frontend.md) |
-| 審查程式碼 | [review/checklist.md](review/checklist.md) + 專案 debt.md |
+| 審查程式碼 | [review/checklist.md](review/checklist.md)（含報告格式）+ 專案 debt.md |
+| 擔心過度設計、想確認值不值得 | [review/anti-patterns.md 重要提醒](review/anti-patterns.md#重要提醒這不是萬靈丹) |
 | 記錄慣例 / 偏差 | [workflows/record-convention.md](workflows/record-convention.md) |
 | 任務收尾，該記什麼 | [workflows/wrap-up.md](workflows/wrap-up.md) |
 | 想看完整範例 | [examples/borrow-book-end-to-end.md](examples/borrow-book-end-to-end.md) |

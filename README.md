@@ -19,6 +19,8 @@
 
 ```
 architecture-skills/
+├── dist/
+│   └── clean-architecture/SKILL.md  # 單檔版（約 26k 字元），給只能放一個檔案的工具
 ├── shared/                          # 跨架構共用
 │   ├── example-domain.md            # 範例領域：圖書借閱（規則 R1–R7）
 │   ├── code-conventions.md          # 範例程式碼約定（Java，相容 JDK 1.7 / 1.8）
@@ -27,7 +29,7 @@ architecture-skills/
 └── skills/
     └── clean-architecture/
         ├── SKILL.md                 # ★ 入口：讀取策略 + 硬規則 + 路徑對照 + 任務表
-        ├── templates/project/       # 專案記憶模板：card / conventions / debt
+        ├── templates/               # 專案記憶模板（card / conventions / map / decisions / debt）、依賴檢查程式
         ├── layers/                  # 每層一個檔案：遵循規則、範例程式碼、與其他層的配合
         ├── concepts/                # DTO、放置判斷、跨邊界、事件、前端、CSV 優先、檔案編碼
         ├── workflows/               # 新功能、新 use case、新 adapter、重構
@@ -57,9 +59,22 @@ git submodule add <本專案 repo URL> docs/architecture-skills
 | Cursor | `.cursor/rules/architecture.mdc` | 同上 |
 | GitHub Copilot | `.github/copilot-instructions.md` | 同上 |
 | Codex / 其他支援 AGENTS.md 的工具 | `AGENTS.md` | 同上 |
-| ChatGPT / 網頁版 | 對話開頭 | 貼上 `SKILL.md`，需要時再貼對應子文件 |
+| ChatGPT / 網頁版 | 對話開頭 | 貼上單檔版 `dist/clean-architecture/SKILL.md` |
 
 > `SKILL.md` 開頭的 frontmatter（`name` / `description`）是選用的中繼資料，不支援的工具會當作一般文字略過。
+
+### 單檔版（只能放一個 skill 檔案時）
+
+有些工具或平台的 skill 只能是一個檔案。這時使用 [dist/clean-architecture/SKILL.md](dist/clean-architecture/SKILL.md)：
+
+| | 多檔版（`skills/`） | 單檔版（`dist/`） |
+|---|---|---|
+| 內容 | 完整：每層的完整範例、各語言對照、檢查程式樣板 | 濃縮：規則、流程、模板、範例核心片段，Java 範例 |
+| 大小 | 全部約 95k 字元，但每次只讀需要的 1–2 份 | 約 26k 字元，載入時整份讀取 |
+| 適合 | Claude Code、Cursor 等可讀取資料夾的工具 | 只能放單一檔案的平台、貼進網頁對話 |
+
+兩者的規則一致；**多檔版是正本**，修改時先改多檔版，再同步濃縮到單檔版。
+單檔版同樣支援專案記憶：首次設定後，日常任務只讀專案的 `docs/architecture/card.md`，不會每次重讀這份單檔。
 
 ## 兩種資料夾結構
 

@@ -1,6 +1,7 @@
 # 反模式（Anti-patterns）
 
 每個反模式包含：**症狀 → 為什麼不好 → 修法（含前後對照）**。範例為 Java，相容 JDK 1.7。
+文末的「重要提醒」說明什麼時候**不要**套用這麼多規則。
 
 ---
 
@@ -223,3 +224,25 @@ public class SmtpNotifier implements Notifier {
 **為什麼不好**：交易 rollback 後，信已經寄出了。
 
 **修法**：副作用放在交易成功之後；需要保證時使用 Outbox pattern（見 [domain-events.md](../concepts/domain-events.md#可靠性outbox)）。
+
+---
+
+## 重要提醒：這不是萬靈丹
+
+- 不是每個專案都需要剛好四層。**只要依賴方向正確，層數可以彈性調整。**
+- 分層本身不是目的。目的是讓程式**更容易理解、修改、測試**。
+- 小專案可以精簡：省略只有一個實作的輸入 port、省略 presenter、DTO 寫成 use case 的巢狀類別（見 [choosing.md 精簡版](../structure/choosing.md#小專案精簡版a-或-b-都適用)）。**唯一不能省的是依賴方向。**
+
+### 常見陷阱
+
+1. **過度分層**：純 CRUD 也做滿四層，團隊會因此排斥架構
+2. **過度抽象**：為了「以後可能會換」做一堆只有一個實作的介面
+3. **表面套用**：資料夾分好了，但 domain 裡還是 import 了 Spring
+4. **一次重寫**：應該一次搬一個功能，每一步都能回退（見 [refactor-legacy.md](../workflows/refactor-legacy.md)）
+
+### 審查時問自己
+
+- 這個分離真的有帶來好處嗎？
+- 依賴方向真的是由外往內嗎？
+- 換掉資料庫或框架時，domain 與 application 需要改嗎？
+- 這段程式碼，業務人員看得出它在做什麼嗎？
